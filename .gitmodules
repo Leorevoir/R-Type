@@ -1,0 +1,3 @@
+[submodule "external/R-Engine"]
+	path = external/R-Engine
+	url = git@github.com:Leorevoir/R-Engine.git
