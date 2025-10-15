@@ -28,15 +28,11 @@
     </a>
 </p>
 
----
-
-## 📰 Description
+## Description
 
 > TODO
 
----
-
-## 📦 Installation
+## Installation
 
 Clone the repo with its submodules.
 
@@ -65,19 +61,15 @@ cd ..
 
 > TODO
 
----
-
-## 🖼️ Graphical backend
+## Graphical backend
 
 - [**R-Engine**](https://github.com/Leorevoir/R-Engine)
 
-## 🛠️ Development
+## Development
 
 THANKS for developping with us !
 
 > TODO: add CODE_OF_CONDUCT.md & CONTRIBUTING.md
-
----
 
 ## Tested on
 
@@ -88,8 +80,6 @@ THANKS for developping with us !
 - Arch
 - Ubuntu
 - Fedora
-
----
 
 ## License
 
