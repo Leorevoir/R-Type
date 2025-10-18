@@ -1,4 +1,5 @@
 #include <plugins/combat.hpp>
+#include <plugins/debug.hpp>
 #include <plugins/game_state.hpp>
 #include <plugins/gameplay.hpp>
 #include <plugins/menu.hpp>
@@ -55,6 +56,7 @@ int main()
         .add_plugins(PlayerPlugin{})
         .add_plugins(GameplayPlugin{})
         .add_plugins(CombatPlugin{})
+        .add_plugins(DebugPlugin{})
 
         /* Add the remaining core setup */
         .add_systems<setup_core_game_system>(r::OnEnter{GameState::EnemiesBattle})
