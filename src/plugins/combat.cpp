@@ -1,5 +1,5 @@
-#include <plugins/combat.hpp>
 #include <components.hpp>
+#include <plugins/combat.hpp>
 #include <resources.hpp>
 #include <state.hpp>
 
@@ -41,7 +41,9 @@ static void collision_system(r::ecs::Commands &commands,
         /* Collision with ennemis */
         for (auto enemy_it = enemy_query.begin(); enemy_it != enemy_query.end(); ++enemy_it) {
             auto [enemy_transform, enemy_collider, _e] = *enemy_it;
-            float distance = (bullet_transform.ptr->position - enemy_transform.ptr->position).length();
+            r::Vec3f bullet_center = bullet_transform.ptr->position + bullet_collider.ptr->offset;
+            r::Vec3f enemy_center = enemy_transform.ptr->position + enemy_collider.ptr->offset;
+            float distance = (bullet_center - enemy_center).length();
             float radii_sum = bullet_collider.ptr->radius + enemy_collider.ptr->radius;
 
             if (distance < radii_sum) {
@@ -59,7 +61,9 @@ static void collision_system(r::ecs::Commands &commands,
         /* Collision with boss */
         for (auto boss_it = boss_query.begin(); boss_it != boss_query.end(); ++boss_it) {
             auto [boss_transform, boss_collider, health, _boss] = *boss_it;
-            float distance = (bullet_transform.ptr->position - boss_transform.ptr->position).length();
+            r::Vec3f bullet_center = bullet_transform.ptr->position + bullet_collider.ptr->offset;
+            r::Vec3f boss_center = boss_transform.ptr->position + boss_collider.ptr->offset;
+            float distance = (bullet_center - boss_center).length();
             float radii_sum = bullet_collider.ptr->radius + boss_collider.ptr->radius;
 
             if (distance < radii_sum) {
@@ -87,11 +91,12 @@ static void player_collision_system(r::ecs::ResMut<r::NextState<GameState>> next
 {
     for (auto [player_transform, player_collider, _p] : player_query) {
         for (auto [enemy_transform, enemy_collider, _e] : enemy_query) {
-            r::Vec3f delta = player_transform.ptr->position - enemy_transform.ptr->position;
-            float distance_squared = delta.x * delta.x + delta.z * delta.z;
+            r::Vec3f player_center = player_transform.ptr->position + player_collider.ptr->offset;
+            r::Vec3f delta = player_center - (enemy_transform.ptr->position + enemy_collider.ptr->offset);
+            float distance = delta.length();
 
             float sum_radii = player_collider.ptr->radius + enemy_collider.ptr->radius;
-            if (distance_squared < sum_radii * sum_radii) {
+            if (distance < sum_radii) {
                 r::Logger::warn("Player collision! Game Over.");
                 next_state.ptr->set(GameState::GameOver);
                 return;
@@ -106,11 +111,12 @@ static void player_bullet_collision_system(r::ecs::ResMut<r::NextState<GameState
 {
     for (auto [player_transform, player_collider, _p] : player_query) {
         for (auto [bullet_transform, bullet_collider, _b] : bullet_query) {
-            r::Vec3f delta = player_transform.ptr->position - bullet_transform.ptr->position;
-            float distance_squared = delta.x * delta.x + delta.z * delta.z;
+            r::Vec3f player_center = player_transform.ptr->position + player_collider.ptr->offset;
+            r::Vec3f delta = player_center - (bullet_transform.ptr->position + bullet_collider.ptr->offset);
+            float distance = delta.length();
 
             float sum_radii = player_collider.ptr->radius + bullet_collider.ptr->radius;
-            if (distance_squared < sum_radii * sum_radii) {
+            if (distance < sum_radii) {
                 r::Logger::warn("Player hit by bullet! Game Over.");
                 next_state.ptr->set(GameState::GameOver);
                 return;

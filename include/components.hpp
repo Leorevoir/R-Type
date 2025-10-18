@@ -42,6 +42,7 @@ struct Velocity {
 
 struct Collider {
         float radius;
+        r::Vec3f offset = {0.0f, 0.0f, 0.0f};
 };
 
 struct Health {

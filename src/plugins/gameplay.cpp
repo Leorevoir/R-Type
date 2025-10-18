@@ -1,5 +1,5 @@
-#include <plugins/gameplay.hpp>
 #include <components.hpp>
+#include <plugins/gameplay.hpp>
 #include <resources.hpp>
 #include <state.hpp>
 
@@ -101,12 +101,12 @@ static void boss_spawn_system(r::ecs::Commands& commands, r::ecs::ResMut<r::Mesh
                 BossShootTimer{},
                 Health{400, 400},
                 r::Transform3d{
-                    .position = {24.0f, 35.0f, -10.0f},
+                    .position = {8.0f, 0.0f, -10.0f},
                     .rotation = {static_cast<float>(M_PI) / 2.0f, 0.0f, -static_cast<float>(M_PI) / 2.0f},
-                    .scale = {1.0f, 1.0f, 1.0f}
+                    .scale = {0.5f, 0.5f, 0.5f}
                 },
                 Velocity{{0.0f, 0.0f, BOSS_VERTICAL_SPEED}},
-                Collider{35.0f},
+                Collider{.radius = 5.5f, .offset = {-2.5f, 0.0f, 4.0f}},
                 r::Mesh3d{
                     boss_mesh_handle, r::Color{255, 255, 255, 255} /* White tint to show original texture */
                 }
@@ -146,7 +146,7 @@ static void boss_ai_system(
                             .scale = {0.3f, 0.3f, 0.3f}
                         },
                         Velocity{{-BULLET_SPEED, 0.0f, 0.0f}},
-                        Collider{0.3f},
+                        Collider{.radius = 0.4f},
                         r::Mesh3d{bullet_mesh_handle, r::Color{255, 80, 220, 255}}
                     );
                     if (health.ptr->current <= health.ptr->max / 2) {
@@ -157,7 +157,7 @@ static void boss_ai_system(
                                 .scale = {0.6f, 0.6f, 0.6f}
                             },
                             Velocity{{-BULLET_SPEED, 0.0f, 0.0f}},
-                            Collider{0.3f},
+                            Collider{.radius = 0.8f},
                             r::Mesh3d{bullet_mesh_handle, r::Color{255, 150, 50, 255}}
                         );
                     }

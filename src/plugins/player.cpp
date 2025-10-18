@@ -1,5 +1,5 @@
-#include <plugins/player.hpp>
 #include <components.hpp>
+#include <plugins/player.hpp>
 #include <state.hpp>
 
 #include "R-Engine/Components/Transform3d.hpp"
@@ -54,7 +54,7 @@ static void spawn_player_system(r::ecs::Commands& commands, r::ecs::ResMut<r::Me
                     .scale = {3.0f, 3.0f, 3.0f}
                 },
                 Velocity{{0.0f, 0.0f, 0.0f}},
-                Collider{0.5f},
+                Collider{.radius = 0.8f, .offset = {1.5f, 0.0f, 0.0f}},
                 FireCooldown{},
                 r::Mesh3d{
                     player_mesh_handle, r::Color{255, 255, 255, 255} /* White tint to show original texture */
