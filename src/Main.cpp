@@ -1,9 +1,9 @@
-#include "plugins/combat.hpp"
-#include "plugins/game_state.hpp"
-#include "plugins/gameplay.hpp"
-#include "plugins/menu.hpp"
-#include "plugins/player.hpp"
-#include "state.hpp"
+#include <plugins/combat.hpp>
+#include <plugins/game_state.hpp>
+#include <plugins/gameplay.hpp>
+#include <plugins/menu.hpp>
+#include <plugins/player.hpp>
+#include <state.hpp>
 
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Backend.hpp>

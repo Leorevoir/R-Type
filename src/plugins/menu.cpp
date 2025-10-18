@@ -1,6 +1,6 @@
-#include "menu.hpp"
-#include "../components.hpp"
-#include "../state.hpp"
+#include <plugins/menu.hpp>
+#include <components.hpp>
+#include <state.hpp>
 
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Logger.hpp>

@@ -1,7 +1,7 @@
-#include "gameplay.hpp"
-#include "../components.hpp"
-#include "../resources.hpp"
-#include "../state.hpp"
+#include <plugins/gameplay.hpp>
+#include <components.hpp>
+#include <resources.hpp>
+#include <state.hpp>
 
 #include "R-Engine/Components/Transform3d.hpp"
 #include <R-Engine/Application.hpp>

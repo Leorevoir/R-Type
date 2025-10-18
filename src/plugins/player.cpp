@@ -1,6 +1,6 @@
-#include "player.hpp"
-#include "../components.hpp"
-#include "../state.hpp"
+#include <plugins/player.hpp>
+#include <components.hpp>
+#include <state.hpp>
 
 #include "R-Engine/Components/Transform3d.hpp"
 #include <R-Engine/Application.hpp>
