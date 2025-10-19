@@ -50,7 +50,7 @@ static void spawn_player_system(r::ecs::Commands& commands, r::ecs::ResMut<r::Me
                 Player{},
                 r::Transform3d{
                     .position = {-5.0f, 0.0f, 0.0f},
-                    .rotation = {static_cast<float>(M_PI) / 2.0f, 0.0f, static_cast<float>(M_PI) / 2.0f},
+                    .rotation = {0.0f, static_cast<float>(M_PI) / 2.0f, 0.0f},
                     .scale = {3.0f, 3.0f, 3.0f}
                 },
                 Velocity{{0.0f, 0.0f, 0.0f}},
@@ -82,10 +82,10 @@ static void player_input_system(
         /* --- Movement --- */
         r::Vec3f direction = {0.0f, 0.0f, 0.0f};
         if (input_map.ptr->isActionPressed("MoveUp", *user_input.ptr)) {
-            direction.z += 1.0f;
+            direction.y += 1.0f;
         }
         if (input_map.ptr->isActionPressed("MoveDown", *user_input.ptr)) {
-            direction.z -= 1.0f;
+            direction.y -= 1.0f;
         }
         if (input_map.ptr->isActionPressed("MoveLeft", *user_input.ptr)) {
             direction.x -= 1.0f;
@@ -107,6 +107,7 @@ static void player_input_system(
                         PlayerBullet{},
                         r::Transform3d{
                             .position = transform.ptr->position + r::Vec3f{0.6f, 0.0f, 0.0f},
+                            .rotation = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f},
                             .scale = {0.2f, 0.2f, 0.2f}
                         },
                         Velocity{{BULLET_SPEED, 0.0f, 0.0f}},
@@ -136,12 +137,12 @@ static void screen_bounds_system(r::ecs::Query<r::ecs::Mut<r::Transform3d>, r::e
             transform.ptr->position.x = 8.0f - PLAYER_BOUNDS_PADDING;
         }
 
-        /* Clamp Z position */
-        if (transform.ptr->position.z < -4.5f + PLAYER_BOUNDS_PADDING) {
-            transform.ptr->position.z = -4.5f + PLAYER_BOUNDS_PADDING;
+        /* Clamp Y position */
+        if (transform.ptr->position.y < -4.5f + PLAYER_BOUNDS_PADDING) {
+            transform.ptr->position.y = -4.5f + PLAYER_BOUNDS_PADDING;
         }
-        if (transform.ptr->position.z > 4.5f - PLAYER_BOUNDS_PADDING) {
-            transform.ptr->position.z = 4.5f - PLAYER_BOUNDS_PADDING;
+        if (transform.ptr->position.y > 4.5f - PLAYER_BOUNDS_PADDING) {
+            transform.ptr->position.y = 4.5f - PLAYER_BOUNDS_PADDING;
         }
     }
 }

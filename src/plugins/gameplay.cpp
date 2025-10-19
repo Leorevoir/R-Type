@@ -49,8 +49,8 @@ static void enemy_spawner_system(r::ecs::Commands& commands, r::ecs::ResMut<Enem
     if (spawn_timer.ptr->time_left <= 0.0f) {
         spawn_timer.ptr->time_left = ENEMY_SPAWN_INTERVAL;
 
-        /* Spawn enemy at random Z position */
-        float random_z = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 10.0f - 5.0f;
+        /* Spawn enemy at random Y position */
+        float random_y = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 10.0f - 5.0f;
 
         ::Model enemy_model_data = r::Mesh3d::Glb("assets/models/enemy.glb");
         if (enemy_model_data.meshCount > 0) {
@@ -59,8 +59,8 @@ static void enemy_spawner_system(r::ecs::Commands& commands, r::ecs::ResMut<Enem
                 commands.spawn(
                     Enemy{},
                     r::Transform3d{
-                        .position = {15.0f, 0.0f, random_z},
-                        .rotation = {static_cast<float>(M_PI) / 2.0f, 0.0f, -static_cast<float>(M_PI) / 2.0f},
+                        .position = {15.0f, random_y, 0.0f},
+                        .rotation = {0.0f, -(static_cast<float>(M_PI) / 2.0f), 0.0f},
                         .scale = {1.0f, 1.0f, 1.0f}
                     },
                     Velocity{{-ENEMY_SPEED, 0.0f, 0.0f}},
@@ -101,12 +101,12 @@ static void boss_spawn_system(r::ecs::Commands& commands, r::ecs::ResMut<r::Mesh
                 BossShootTimer{},
                 Health{400, 400},
                 r::Transform3d{
-                    .position = {8.0f, 0.0f, -10.0f},
-                    .rotation = {static_cast<float>(M_PI) / 2.0f, 0.0f, -static_cast<float>(M_PI) / 2.0f},
+                    .position = {12.0f, -10.0f, 0.0f},
+                    .rotation = {0.0f, -(static_cast<float>(M_PI) / 2.0f), 0.0f},
                     .scale = {0.5f, 0.5f, 0.5f}
                 },
-                Velocity{{0.0f, 0.0f, BOSS_VERTICAL_SPEED}},
-                Collider{.radius = 5.5f, .offset = {-2.5f, 0.0f, 4.0f}},
+                Velocity{{0.0f, BOSS_VERTICAL_SPEED, 0.0f}},
+                Collider{.radius = 5.5f, .offset = {-2.5f, 4.0f, 0.0f}},
                 r::Mesh3d{
                     boss_mesh_handle, r::Color{255, 255, 255, 255} /* White tint to show original texture */
                 }
@@ -124,10 +124,10 @@ static void boss_ai_system(
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Mut<Velocity>, r::ecs::Mut<BossShootTimer>, r::ecs::Ref<Health>, r::ecs::With<Boss>> query)
 {
     for (auto [transform, velocity, timer, health, _] : query) {
-        if (transform.ptr->position.z > BOSS_UPPER_BOUND && velocity.ptr->value.z > 0) {
-            velocity.ptr->value.z *= -1;
-        } else if (transform.ptr->position.z < BOSS_LOWER_BOUND && velocity.ptr->value.z < 0) {
-            velocity.ptr->value.z *= -1;
+        if (transform.ptr->position.y > BOSS_UPPER_BOUND && velocity.ptr->value.y > 0) {
+            velocity.ptr->value.y *= -1;
+        } else if (transform.ptr->position.y < BOSS_LOWER_BOUND && velocity.ptr->value.y < 0) {
+            velocity.ptr->value.y *= -1;
         }
 
         timer.ptr->time_left -= time.ptr->delta_time;
@@ -143,6 +143,7 @@ static void boss_ai_system(
                         EnemyBullet{},
                         r::Transform3d{
                             .position = transform.ptr->position - r::Vec3f{1.6f, 0.0f, 0.0f},
+                            .rotation = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f},
                             .scale = {0.3f, 0.3f, 0.3f}
                         },
                         Velocity{{-BULLET_SPEED, 0.0f, 0.0f}},
@@ -153,7 +154,8 @@ static void boss_ai_system(
                         commands.spawn(
                             EnemyBullet{},
                             r::Transform3d{
-                                .position = transform.ptr->position + r::Vec3f{0.0f, 0.0f, 5.5f},
+                                .position = transform.ptr->position + r::Vec3f{0.0f, 5.5f, 0.0f},
+                                .rotation = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f},
                                 .scale = {0.6f, 0.6f, 0.6f}
                             },
                             Velocity{{-BULLET_SPEED, 0.0f, 0.0f}},
