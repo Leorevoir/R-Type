@@ -40,6 +40,19 @@ Clone the repo with its submodules.
 git clone --recurse-submodules -j$(nproc) git@github.com:Leorevoir/R-Type.git
 ```
 
+## Install Git LFS
+
+This project stores large binary assets with Git LFS. Please install Git LFS and fetch LFS objects after cloning:
+
+```sh
+# install & enable LFS (run once per machine)
+git lfs install
+
+cd R-Type/
+git lfs fetch --all
+git lfs checkout
+```
+
 ### Build
 
 Build the project using our multithreading build `bash` script:
