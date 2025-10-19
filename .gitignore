@@ -59,13 +59,6 @@ vulkan_engine
 asm_offset
 *.spv
 
-*.jpg
-*.png
-*.mtl
-*.obj
-*.cc
-*.glb
-
 console.log
 assets/shaders/cache
 *.vs
@@ -123,5 +116,3 @@ examples/assets/
 intra_assets/*
 
 *.pdf
-*.ogg
-*.wav
