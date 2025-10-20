@@ -1,10 +1,12 @@
 #include <components.hpp>
+#include <events.hpp>
 #include <plugins/menu.hpp>
 #include <state.hpp>
 
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/ECS/Command.hpp>
+#include <R-Engine/ECS/Event.hpp>
 #include <R-Engine/ECS/Query.hpp>
 #include <R-Engine/ECS/RunConditions.hpp>
 #include <R-Engine/Plugins/Ui/Systems.hpp>
@@ -118,37 +120,54 @@ static void build_main_menu(r::ecs::Commands& cmds)
     });
 }
 
-static void menu_button_handler(r::ecs::Res<r::UiInputState> input_state, r::ecs::Query<r::ecs::Ref<MenuButton>> buttons,
+/**
+ * @brief A temporary "bridge" system.
+ * @details This system polls the old UiInputState resource and fires a standard
+ *          UiClickEvent. In a full refactor, the UI plugin itself would be
+ *          modified to send this event directly, removing the need for polling.
+ */
+static void translate_input_to_ui_click_event(
+    r::ecs::Res<r::UiInputState> input_state,
+    r::ecs::EventWriter<UiClickEvent> click_writer)
+{
+    if (input_state.ptr->last_clicked != r::ecs::NULL_ENTITY) {
+        click_writer.send({input_state.ptr->last_clicked});
+    }
+}
+
+static void menu_button_handler(r::ecs::EventReader<UiClickEvent> click_reader, r::ecs::Query<r::ecs::Ref<MenuButton>> buttons,
                                 r::ecs::ResMut<r::NextState<GameState>> next_state)
 {
-    const auto clicked = input_state.ptr->last_clicked;
-    if (clicked == r::ecs::NULL_ENTITY) {
-        return;
-    }
-
-    MenuButton::Action action = MenuButton::Action::None;
-    for (auto it = buttons.begin(); it != buttons.end(); ++it) {
-        auto [btn] = *it;
-        if (static_cast<r::ecs::Entity>(it.entity()) == clicked && btn.ptr) {
-            action = btn.ptr->action;
-            break;
+    for (const auto &click : click_reader) {
+        const r::ecs::Entity clicked_entity = click.entity;
+        if (clicked_entity == r::ecs::NULL_ENTITY) {
+            continue;
         }
-    }
 
-    switch (action) {
-        case MenuButton::Action::Play:
-            r::Logger::info("Starting game...");
-            next_state.ptr->set(GameState::EnemiesBattle);
-            break;
-        case MenuButton::Action::Options:
-            r::Logger::info("Options clicked (not implemented)");
-            break;
-        case MenuButton::Action::Quit:
-            r::Logger::info("Quitting game...");
-            r::Application::quit.store(true, std::memory_order_relaxed);
-            break;
-        default:
-            break;
+        MenuButton::Action action = MenuButton::Action::None;
+        for (auto it = buttons.begin(); it != buttons.end(); ++it) {
+            auto [btn] = *it;
+            if (it.entity() == clicked_entity && btn.ptr) {
+                action = btn.ptr->action;
+                break;
+            }
+        }
+
+        switch (action) {
+            case MenuButton::Action::Play:
+                r::Logger::info("Starting game...");
+                next_state.ptr->set(GameState::EnemiesBattle);
+                break;
+            case MenuButton::Action::Options:
+                r::Logger::info("Options clicked (not implemented)");
+                break;
+            case MenuButton::Action::Quit:
+                r::Logger::info("Quitting game...");
+                r::Application::quit.store(true, std::memory_order_relaxed);
+                break;
+            default:
+                break;
+        }
     }
 }
 
@@ -210,10 +229,20 @@ void MenuPlugin::build(r::Application& app)
 
         /* Main Menu State */
         .add_systems<build_main_menu>(r::OnEnter{GameState::MainMenu})
+
+        /* Add our new bridge system to run every frame in the MainMenu state.
+         * It must run AFTER the UI plugin detects the click and BEFORE it clears the state. */
+        .add_systems<translate_input_to_ui_click_event>(r::Schedule::UPDATE)
+            .run_if<r::run_conditions::in_state<GameState::MainMenu>>()
+            .after<r::ui::pointer_system>() /* THIS IS THE FIX */
+            .before<r::ui::clear_click_state_system>()
+
+        /* The handler now only runs efficiently when a click event is fired,
+         * and we ensure it runs after the event is potentially created. */
         .add_systems<menu_button_handler>(r::Schedule::UPDATE)
-        .run_if<r::run_conditions::in_state<GameState::MainMenu>>()
-        .after<r::ui::pointer_system>()
-        .before<r::ui::clear_click_state_system>()
+            .run_if<r::run_conditions::on_event<UiClickEvent>>()
+            .after<translate_input_to_ui_click_event>()
+
         .add_systems<cleanup_menu>(r::OnExit{GameState::MainMenu})
 
         /* GameOver State */
