@@ -8,8 +8,12 @@
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/ECS/Command.hpp>
 #include <R-Engine/ECS/Query.hpp>
+#include <R-Engine/Maths/Quaternion.hpp>
 #include <R-Engine/Plugins/InputPlugin.hpp>
 #include <R-Engine/Plugins/MeshPlugin.hpp>
+#include <R-Engine/Plugins/RenderPlugin.hpp>
+#include <R-Engine/Plugins/WindowPlugin.hpp>
+#include <cmath>
 
 // clang-format off
 
@@ -20,7 +24,7 @@
 static constexpr float PLAYER_SPEED = 3.5f;
 static constexpr float BULLET_SPEED = 8.0f;
 static constexpr float PLAYER_FIRE_RATE = 0.15f;
-static constexpr float PLAYER_BOUNDS_PADDING = 0.2f;
+static constexpr float PLAYER_BOUNDS_PADDING = 0.5f;
 static constexpr float FORCE_FRONT_OFFSET_X = 1.75f;
 
 /* ================================================================================= */
@@ -174,23 +178,39 @@ static void player_input_system(
     }
 }
 
-static void screen_bounds_system(r::ecs::Query<r::ecs::Mut<r::Transform3d>, r::ecs::With<Player>> query)
+static void screen_bounds_system(r::ecs::Query<r::ecs::Mut<r::Transform3d>, r::ecs::With<Player>> query, r::ecs::Res<r::Camera3d> camera,
+    r::ecs::Res<r::WindowPluginConfig> window_config)
 {
+    if (!camera.ptr || !window_config.ptr) {
+        return;
+    }
+
+    const float distance = camera.ptr->position.z;
+    const float aspect_ratio =
+        static_cast<float>(window_config.ptr->size.width) / static_cast<float>(window_config.ptr->size.height);
+    const float fovy_rad = camera.ptr->fovy * (r::R_PI / 180.0f);
+
+    const float view_height = 2.0f * distance * std::tan(fovy_rad / 2.0f);
+    const float view_width = view_height * aspect_ratio;
+
+    const float half_height = view_height / 2.0f;
+    const float half_width = view_width / 2.0f;
+
     for (auto [transform, _] : query) {
         /* Clamp X position */
-        if (transform.ptr->position.x < -8.0f + PLAYER_BOUNDS_PADDING) {
-            transform.ptr->position.x = -8.0f + PLAYER_BOUNDS_PADDING;
+        if (transform.ptr->position.x < -half_width + PLAYER_BOUNDS_PADDING) {
+            transform.ptr->position.x = -half_width + PLAYER_BOUNDS_PADDING;
         }
-        if (transform.ptr->position.x > 8.0f - PLAYER_BOUNDS_PADDING) {
-            transform.ptr->position.x = 8.0f - PLAYER_BOUNDS_PADDING;
+        if (transform.ptr->position.x > half_width - PLAYER_BOUNDS_PADDING) {
+            transform.ptr->position.x = half_width - PLAYER_BOUNDS_PADDING;
         }
 
         /* Clamp Y position */
-        if (transform.ptr->position.y < -4.5f + PLAYER_BOUNDS_PADDING) {
-            transform.ptr->position.y = -4.5f + PLAYER_BOUNDS_PADDING;
+        if (transform.ptr->position.y < -half_height + PLAYER_BOUNDS_PADDING) {
+            transform.ptr->position.y = -half_height + PLAYER_BOUNDS_PADDING;
         }
-        if (transform.ptr->position.y > 4.5f - PLAYER_BOUNDS_PADDING) {
-            transform.ptr->position.y = 4.5f - PLAYER_BOUNDS_PADDING;
+        if (transform.ptr->position.y > half_height - PLAYER_BOUNDS_PADDING) {
+            transform.ptr->position.y = half_height - PLAYER_BOUNDS_PADDING;
         }
     }
 }
