@@ -8,7 +8,6 @@
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/ECS/Command.hpp>
 #include <R-Engine/ECS/Query.hpp>
-#include <iostream>
 #include <vector>
 
 /* ================================================================================= */
@@ -69,7 +68,6 @@ static void collision_system(r::ecs::Commands &commands,
             if (distance < radii_sum) {
                 despawn_queue.push_back(bullet_it.entity());
                 health.ptr->current -= 10;
-                std::cout << "Boss hit! HP: " << health.ptr->current << "/" << health.ptr->max << std::endl;
 
                 if (health.ptr->current <= 0) {
                     despawn_queue.push_back(boss_it.entity());
@@ -125,12 +123,70 @@ static void player_bullet_collision_system(r::ecs::ResMut<r::NextState<GameState
     }
 }
 
+static void force_bullet_collision_system(r::ecs::Commands &commands,
+    r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::With<Force>> force_query,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<EnemyBullet>> bullet_query)
+{
+    if (force_query.size() == 0 || bullet_query.size() == 0) {
+        return;
+    }
+
+    std::vector<r::ecs::Entity> bullets_to_despawn;
+    auto [force_transform, force_collider, _] = *force_query.begin();
+
+    for (auto bullet_it = bullet_query.begin(); bullet_it != bullet_query.end(); ++bullet_it) {
+        auto [bullet_transform, bullet_collider, __] = *bullet_it;
+
+        r::Vec3f force_center = force_transform.ptr->position + force_collider.ptr->offset;
+        r::Vec3f bullet_center = bullet_transform.ptr->position + bullet_collider.ptr->offset;
+        float distance = (force_center - bullet_center).length();
+        float radii_sum = force_collider.ptr->radius + bullet_collider.ptr->radius;
+
+        if (distance < radii_sum) {
+            bullets_to_despawn.push_back(bullet_it.entity());
+        }
+    }
+
+    for (r::ecs::Entity bullet : bullets_to_despawn) {
+        commands.despawn(bullet);
+    }
+}
+
+static void force_enemy_collision_system(r::ecs::Commands &commands,
+    r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::With<Force>> force_query,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<Enemy>> enemy_query)
+{
+    if (force_query.size() == 0 || enemy_query.size() == 0) {
+        return;
+    }
+
+    std::vector<r::ecs::Entity> enemies_to_despawn;
+    auto [force_transform, force_collider, _] = *force_query.begin();
+
+    for (auto enemy_it = enemy_query.begin(); enemy_it != enemy_query.end(); ++enemy_it) {
+        auto [enemy_transform, enemy_collider, __] = *enemy_it;
+
+        r::Vec3f force_center = force_transform.ptr->position + force_collider.ptr->offset;
+        r::Vec3f enemy_center = enemy_transform.ptr->position + enemy_collider.ptr->offset;
+        float distance = (force_center - enemy_center).length();
+        float radii_sum = force_collider.ptr->radius + enemy_collider.ptr->radius;
+
+        if (distance < radii_sum) {
+            enemies_to_despawn.push_back(enemy_it.entity());
+        }
+    }
+
+    for (r::ecs::Entity enemy : enemies_to_despawn) {
+        commands.despawn(enemy);
+    }
+}
+
 static void despawn_offscreen_system(r::ecs::Commands &commands,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Without<Player>, r::ecs::Without<Boss>> query)
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Without<Player>, r::ecs::Without<Boss>, r::ecs::Without<Force>> query)
 {
     const float despawn_boundary_x = 100.0f;
     for (auto it = query.begin(); it != query.end(); ++it) {
-        auto [transform, _, __] = *it;
+        auto [transform, _, __, ___] = *it;
         if (std::abs(transform.ptr->position.x) > despawn_boundary_x) {
             commands.despawn(it.entity());
         }
@@ -166,6 +222,7 @@ void CombatPlugin::build(r::Application &app)
 
         .add_systems<despawn_offscreen_system>(r::Schedule::UPDATE)
 
-        .add_systems<collision_system, player_collision_system, player_bullet_collision_system>(r::Schedule::UPDATE)
+        .add_systems<collision_system, player_collision_system, player_bullet_collision_system, force_bullet_collision_system,
+            force_enemy_collision_system>(r::Schedule::UPDATE)
         .run_if<is_in_gameplay_state>();
 }

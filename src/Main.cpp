@@ -1,5 +1,6 @@
 #include <plugins/combat.hpp>
 #include <plugins/debug.hpp>
+#include <plugins/force.hpp>
 #include <plugins/game_state.hpp>
 #include <plugins/gameplay.hpp>
 #include <plugins/menu.hpp>
@@ -36,6 +37,7 @@ static void setup_core_game_system(r::ecs::ResMut<r::Camera3d> camera, r::ecs::R
     input_map.ptr->bindAction("MoveLeft", r::KEYBOARD, KEY_A);
     input_map.ptr->bindAction("MoveRight", r::KEYBOARD, KEY_D);
     input_map.ptr->bindAction("Fire", r::KEYBOARD, KEY_SPACE);
+    input_map.ptr->bindAction("Force", r::KEYBOARD, KEY_LEFT_SHIFT);
 }
 
 int main()
@@ -54,6 +56,7 @@ int main()
         .add_plugins(GameStatePlugin{})
         .add_plugins(MenuPlugin{})
         .add_plugins(PlayerPlugin{})
+        .add_plugins(ForcePlugin{})
         .add_plugins(GameplayPlugin{})
         .add_plugins(CombatPlugin{})
         .add_plugins(DebugPlugin{})
