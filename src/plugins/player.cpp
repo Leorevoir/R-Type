@@ -25,6 +25,7 @@ static constexpr float PLAYER_SPEED = 3.5f;
 static constexpr float BULLET_SPEED = 8.0f;
 static constexpr float PLAYER_FIRE_RATE = 0.15f;
 static constexpr float PLAYER_BOUNDS_PADDING = 0.5f;
+static constexpr float WAVE_CANNON_CHARGE_START_DELAY = 0.2f;
 static constexpr float FORCE_FRONT_OFFSET_X = 1.75f;
 
 /* ================================================================================= */
@@ -125,10 +126,12 @@ static void link_force_to_player_system(
 
 static void player_input_system(
     r::ecs::Commands& commands, r::ecs::Res<r::UserInput> user_input, r::ecs::Res<r::InputMap> input_map,
-    r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::core::FrameTime> time,
-    r::ecs::Query<r::ecs::Mut<Velocity>, r::ecs::Ref<r::Transform3d>, r::ecs::Mut<FireCooldown>, r::ecs::With<Player>> query)
+    r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::core::FrameTime> time, r::ecs::Query<r::ecs::Mut<Velocity>,
+        r::ecs::Ref<r::Transform3d>, r::ecs::Mut<FireCooldown>, r::ecs::Mut<Player>> query)
 {
-    for (auto [velocity, transform, cooldown, _] : query) {
+    const bool is_fire_pressed = input_map.ptr->isActionPressed("Fire", *user_input.ptr);
+
+    for (auto [velocity, transform, cooldown, player] : query) {
         /* --- Cooldown --- */
         if (cooldown.ptr->timer > 0.0f) {
             cooldown.ptr->timer -= time.ptr->delta_time;
@@ -152,28 +155,56 @@ static void player_input_system(
         velocity.ptr->value = (direction.length() > 0.0f) ? direction.normalize() * PLAYER_SPEED : r::Vec3f{0.0f, 0.0f, 0.0f};
 
         /* --- Firing --- */
-        if (input_map.ptr->isActionPressed("Fire", *user_input.ptr) && cooldown.ptr->timer <= 0.0f) {
-            cooldown.ptr->timer = PLAYER_FIRE_RATE;
-            ::Mesh bullet_mesh_data = r::Mesh3d::Circle(0.5f, 16);
-            if (bullet_mesh_data.vertexCount > 0 && bullet_mesh_data.vertices) {
-                r::MeshHandle bullet_mesh_handle = meshes.ptr->add(bullet_mesh_data);
-                if (bullet_mesh_handle != r::MeshInvalidHandle) {
-                    commands.spawn(
-                        PlayerBullet{},
-                        r::Transform3d{
-                            .position = transform.ptr->position + r::Vec3f{0.6f, 0.0f, 0.0f},
-                            .scale = {0.5f, 0.5f, 0.5f}
-                        },
-                        Velocity{{BULLET_SPEED, 0.0f, 0.0f}},
-                        Collider{0.2f},
-                        r::Mesh3d{
-                            .id = bullet_mesh_handle,
-                            .color = r::Color{255, 200, 80, 255}, /* Yellow color for bullets */
-                            .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f}
+        if (is_fire_pressed) {
+            player.ptr->wave_cannon_charge_timer += time.ptr->delta_time;
+
+            /* During the initial hold period, do rapid-fire vulcan */
+            if (player.ptr->wave_cannon_charge_timer < WAVE_CANNON_CHARGE_START_DELAY) {
+                if (cooldown.ptr->timer <= 0.0f) {
+                    cooldown.ptr->timer = PLAYER_FIRE_RATE;
+                    ::Mesh bullet_mesh_data = r::Mesh3d::Circle(0.5f, 16);
+                    if (bullet_mesh_data.vertexCount > 0 && bullet_mesh_data.vertices) {
+                        r::MeshHandle bullet_mesh_handle = meshes.ptr->add(bullet_mesh_data);
+                        if (bullet_mesh_handle != r::MeshInvalidHandle) {
+                            commands.spawn(PlayerBullet{},
+                                r::Transform3d{.position = transform.ptr->position + r::Vec3f{0.6f, 0.0f, 0.0f}, .scale = {0.5f, 0.5f, 0.5f}},
+                                Velocity{{BULLET_SPEED, 0.0f, 0.0f}}, Collider{0.2f},
+                                r::Mesh3d{.id = bullet_mesh_handle,
+                                    .color = r::Color{255, 200, 80, 255},
+                                    .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f}});
                         }
-                    );
+                    }
                 }
             }
+            /* After the initial delay, we enter charging mode implicitly. */
+        } else {
+            /* Fire button was released */
+            if (player.ptr->wave_cannon_charge_timer > 0) {
+                /* If held long enough to charge, fire the Wave Cannon */
+                if (player.ptr->wave_cannon_charge_timer >= WAVE_CANNON_CHARGE_START_DELAY) {
+                    float charge_duration = player.ptr->wave_cannon_charge_timer - WAVE_CANNON_CHARGE_START_DELAY;
+                    if (charge_duration > 2.0f)
+                        charge_duration = 2.0f;/* Max charge of 2s for balance */
+
+                    float size_multiplier = 1.0f + (charge_duration / 2.0f);/* Max charge -> 2x size */
+                    int damage = 10 + static_cast<int>(charge_duration * 45); /* Max charge -> 100 damage */
+
+                    ::Mesh beam_mesh_data = r::Mesh3d::Cube(1.0f);
+                    r::MeshHandle beam_mesh_handle = meshes.ptr->add(beam_mesh_data);
+                    if (beam_mesh_handle != r::MeshInvalidHandle) {
+                        commands.spawn(WaveCannonBeam{.charge_level = charge_duration, .damage = damage},
+                            r::Transform3d{.position = transform.ptr->position + r::Vec3f{2.0f * size_multiplier, 0.0f, 0.0f},
+                                .scale = {2.5f * size_multiplier, 0.4f * size_multiplier, 1.0f}},
+                            Velocity{{15.0f, 0.0f, 0.0f}}, Collider{.radius = 0.2f * size_multiplier},
+                            r::Mesh3d{
+                                .id = beam_mesh_handle,
+                                .color = r::Color{98, 221, 255, 255},/* R-Type cyan */
+                            });
+                    }
+                }
+            }
+            /* Reset timer on release */
+            player.ptr->wave_cannon_charge_timer = 0.0f;
         }
     }
 }

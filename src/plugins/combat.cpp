@@ -46,6 +46,7 @@ static void handle_entity_death(r::ecs::Commands &commands, r::ecs::EventReader<
 static void collision_system(r::ecs::EventWriter<EntityDiedEvent> entity_death_writer,
     r::ecs::EventWriter<BossDefeatedEvent> boss_death_writer,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<PlayerBullet>> bullet_query,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Ref<WaveCannonBeam>> beam_query,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<Enemy>> enemy_query,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Boss>> boss_query)
 {
@@ -53,7 +54,7 @@ static void collision_system(r::ecs::EventWriter<EntityDiedEvent> entity_death_w
         auto [bullet_transform, bullet_collider, _b] = *bullet_it;
         bool bullet_collided = false;
 
-        /* Collision with ennemis */
+        /* Collision with enemies */
         for (auto enemy_it = enemy_query.begin(); enemy_it != enemy_query.end(); ++enemy_it) {
             auto [enemy_transform, enemy_collider, _e] = *enemy_it;
             r::Vec3f bullet_center = bullet_transform.ptr->position + bullet_collider.ptr->offset;
@@ -83,16 +84,58 @@ static void collision_system(r::ecs::EventWriter<EntityDiedEvent> entity_death_w
 
             if (distance < radii_sum) {
                 entity_death_writer.send({bullet_it.entity()});
-                health.ptr->current -= 10;
+                health.ptr->current -= 1;
 
                 if (health.ptr->current <= 0) {
                     entity_death_writer.send({boss_it.entity()});
                     boss_death_writer.send({});
-                    r::Logger::info("Boss defeated!");
                 }
                 break;
             }
         }
+    }
+
+    /* Wave Cannon Beam Collision */
+    for (auto beam_it = beam_query.begin(); beam_it != beam_query.end(); ++beam_it) {
+        auto [beam_transform, beam_collider, beam] = *beam_it;
+
+        /* Collision with enemies (penetrating) */
+        for (auto enemy_it = enemy_query.begin(); enemy_it != enemy_query.end(); ++enemy_it) {
+            auto [enemy_transform, enemy_collider, _e] = *enemy_it;
+            r::Vec3f beam_center = beam_transform.ptr->position + beam_collider.ptr->offset;
+            r::Vec3f enemy_center = enemy_transform.ptr->position + enemy_collider.ptr->offset;
+            float distance = (beam_center - enemy_center).length();
+            float radii_sum = beam_collider.ptr->radius + enemy_collider.ptr->radius;
+
+            if (distance < radii_sum) {
+                entity_death_writer.send({enemy_it.entity()});
+                /* Beam is not destroyed, it continues */
+            }
+        }
+
+        /* Collision with boss */
+        for (auto boss_it = boss_query.begin(); boss_it != boss_query.end(); ++boss_it) {
+            auto [boss_transform, boss_collider, health, _boss] = *boss_it;
+            r::Vec3f beam_center = beam_transform.ptr->position + beam_collider.ptr->offset;
+            r::Vec3f boss_center = boss_transform.ptr->position + boss_collider.ptr->offset;
+            float distance = (beam_center - boss_center).length();
+            float radii_sum = beam_collider.ptr->radius + boss_collider.ptr->radius;
+
+            if (distance < radii_sum) {
+                health.ptr->current -= beam.ptr->damage;
+
+                /* Fire the event to destroy the beam projectile upon hitting the boss */
+                entity_death_writer.send({beam_it.entity()});
+
+                if (health.ptr->current <= 0) {
+                    entity_death_writer.send({boss_it.entity()});
+                    boss_death_writer.send({});
+                }
+                /* Use goto to exit both loops for this beam since it's now destroyed */
+                goto next_beam;
+            }
+        }
+    next_beam:;
     }
 }
 
