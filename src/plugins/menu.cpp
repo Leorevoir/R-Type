@@ -1,5 +1,5 @@
-#include <plugins/menu.hpp>
 #include <components.hpp>
+#include <plugins/menu.hpp>
 #include <state.hpp>
 
 #include <R-Engine/Application.hpp>
@@ -43,8 +43,6 @@ static void setup_ui_theme(r::ecs::ResMut<r::UiTheme> theme, r::ecs::ResMut<r::U
 
 static void build_main_menu(r::ecs::Commands& cmds)
 {
-    r::Logger::info("Building main menu");
-
     /* Root menu container */
     auto menu_root = cmds.spawn(
         MenuRoot{}, r::UiNode{},
@@ -156,7 +154,6 @@ static void menu_button_handler(r::ecs::Res<r::UiInputState> input_state, r::ecs
 
 static void cleanup_menu(r::ecs::Commands& cmds, r::ecs::Query<r::ecs::Ref<MenuRoot>> menu_entities)
 {
-    r::Logger::info("Cleaning up menu");
     for (auto it = menu_entities.begin(); it != menu_entities.end(); ++it) {
         cmds.despawn(it.entity());
     }
@@ -164,8 +161,6 @@ static void cleanup_menu(r::ecs::Commands& cmds, r::ecs::Query<r::ecs::Ref<MenuR
 
 static void show_game_over_ui(r::ecs::Commands& cmds)
 {
-    r::Logger::info("Showing Game Over UI");
-
     cmds.spawn(
         GameOverRoot{}, r::UiNode{},
         r::Style{
@@ -190,7 +185,6 @@ static void show_game_over_ui(r::ecs::Commands& cmds)
 
 static void cleanup_game_over_ui(r::ecs::Commands& cmds, r::ecs::Query<r::ecs::With<GameOverRoot>> query)
 {
-    r::Logger::info("Cleaning up Game Over UI");
     for (auto it = query.begin(); it != query.end(); ++it) {
         cmds.despawn(it.entity());
     }

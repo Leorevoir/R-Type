@@ -1,5 +1,6 @@
 #pragma once
 
+#include <R-Engine/ECS/Entity.hpp>
 #include <R-Engine/Maths/Vec.hpp>
 
 /* ================================================================================= */
@@ -22,6 +23,13 @@ struct GameOverRoot {
 /* ================================================================================= */
 
 struct Player {
+        r::ecs::Entity force_entity = r::ecs::NULL_ENTITY;
+        float force_cooldown = 0.f;
+};
+struct Force {
+        bool is_attached = true;
+        bool is_front_attachment = true;/* true = front, false = rear */
+        r::ecs::Entity owner = r::ecs::NULL_ENTITY;
 };
 struct Boss {
 };

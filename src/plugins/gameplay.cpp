@@ -49,7 +49,6 @@ static void enemy_spawner_system(r::ecs::Commands& commands, r::ecs::ResMut<Enem
     if (spawn_timer.ptr->time_left <= 0.0f) {
         spawn_timer.ptr->time_left = ENEMY_SPAWN_INTERVAL;
 
-        /* Spawn enemy at random Y position */
         float random_y = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)) * 10.0f - 5.0f;
 
         ::Model enemy_model_data = r::Mesh3d::Glb("assets/models/enemy.glb");
@@ -60,18 +59,17 @@ static void enemy_spawner_system(r::ecs::Commands& commands, r::ecs::ResMut<Enem
                     Enemy{},
                     r::Transform3d{
                         .position = {15.0f, random_y, 0.0f},
-                        .rotation = {0.0f, -(static_cast<float>(M_PI) / 2.0f), 0.0f},
                         .scale = {1.0f, 1.0f, 1.0f}
                     },
                     Velocity{{-ENEMY_SPEED, 0.0f, 0.0f}},
                     Collider{0.5f},
-                    r::Mesh3d{enemy_mesh_handle, r::Color{255, 255, 255, 255}}
+                    r::Mesh3d{
+                        .id = enemy_mesh_handle,
+                        .color = r::Color{255, 255, 255, 255},
+                        .rotation_offset = {0.0f, -(static_cast<float>(M_PI) / 2.0f), 0.0f}
+                    }
                 );
-            } else {
-                r::Logger::warn("enemy_spawner_system: Failed to register enemy mesh.");
             }
-        } else {
-            r::Logger::warn("enemy_spawner_system: Failed to load enemy model.");
         }
     }
 }
@@ -102,20 +100,17 @@ static void boss_spawn_system(r::ecs::Commands& commands, r::ecs::ResMut<r::Mesh
                 Health{400, 400},
                 r::Transform3d{
                     .position = {12.0f, -10.0f, 0.0f},
-                    .rotation = {0.0f, -(static_cast<float>(M_PI) / 2.0f), 0.0f},
                     .scale = {0.5f, 0.5f, 0.5f}
                 },
                 Velocity{{0.0f, BOSS_VERTICAL_SPEED, 0.0f}},
                 Collider{.radius = 5.5f, .offset = {-2.5f, 4.0f, 0.0f}},
                 r::Mesh3d{
-                    boss_mesh_handle, r::Color{255, 255, 255, 255} /* White tint to show original texture */
+                    .id = boss_mesh_handle,
+                    .color = r::Color{255, 255, 255, 255},
+                    .rotation_offset = {0.0f, -(static_cast<float>(M_PI) / 2.0f), 0.0f}
                 }
             );
-        } else {
-            r::Logger::error("boss_spawn_system: Failed to register boss model with mesh manager.");
         }
-    } else {
-        r::Logger::error("boss_spawn_system: Failed to load boss model 'assets/Boss.glb'.");
     }
 }
 
