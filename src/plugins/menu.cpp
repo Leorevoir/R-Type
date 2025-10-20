@@ -21,6 +21,38 @@
 // clang-format off
 
 /* ================================================================================= */
+/* Menu Systems :: Helpers */
+/* ================================================================================= */
+
+static void create_menu_title(r::ecs::ChildBuilder& parent)
+{
+    parent.spawn(
+        r::UiNode{},
+        r::Style{.height = 200.f, .width_pct = 100.f, .background = r::Color{0, 0, 0, 1}, .margin = 0.f, .padding = 0.f},
+        r::UiImage{.path = "assets/textures/r-type_title.png", .tint = r::Color{255, 255, 255, 255}, .keep_aspect = true},
+        r::ComputedLayout{},
+        r::Visibility::Visible
+    );
+}
+
+static void create_menu_button(r::ecs::ChildBuilder& parent, MenuButton::Action action, const std::string& text)
+{
+    parent.spawn(
+        r::UiNode{}, r::UiButton{}, MenuButton{action},
+        r::Style{
+            .width = 280.f,
+            .height = 45.f,
+            .direction = r::LayoutDirection::Column,
+            .justify = r::JustifyContent::Center,
+            .align = r::AlignItems::Center
+        },
+        r::UiText{.content = text, .font_size = 22, .font_path = {}},
+        r::ComputedLayout{},
+        r::Visibility::Visible
+    );
+}
+
+/* ================================================================================= */
 /* Menu Systems */
 /* ================================================================================= */
 
@@ -45,8 +77,7 @@ static void setup_ui_theme(r::ecs::ResMut<r::UiTheme> theme, r::ecs::ResMut<r::U
 
 static void build_main_menu(r::ecs::Commands& cmds)
 {
-    /* Root menu container */
-    auto menu_root = cmds.spawn(
+    cmds.spawn(
         MenuRoot{}, r::UiNode{},
         r::Style{
             .width_pct = 100.f,
@@ -61,62 +92,11 @@ static void build_main_menu(r::ecs::Commands& cmds)
         },
         r::ComputedLayout{},
         r::Visibility::Visible
-    );
-
-    menu_root.with_children([&](r::ecs::ChildBuilder& parent) {
-        /* R-Type Title Logo */
-        parent.spawn(
-            r::UiNode{},
-            r::Style{.height = 200.f, .width_pct = 100.f, .background = r::Color{0, 0, 0, 1}, .margin = 0.f, .padding = 0.f},
-            r::UiImage{.path = "assets/textures/r-type_title.png", .tint = r::Color{255, 255, 255, 255}, .keep_aspect = true},
-            r::ComputedLayout{},
-            r::Visibility::Visible
-        );
-
-        /* Play Button */
-        parent.spawn(
-            r::UiNode{}, r::UiButton{}, MenuButton{MenuButton::Action::Play},
-            r::Style{
-                .width = 280.f,
-                .height = 45.f,
-                .direction = r::LayoutDirection::Column,
-                .justify = r::JustifyContent::Center,
-                .align = r::AlignItems::Center
-            },
-            r::UiText{.content = std::string("Play"), .font_size = 22, .font_path = {}},
-            r::ComputedLayout{},
-            r::Visibility::Visible
-        );
-
-        /* Options Button */
-        parent.spawn(
-            r::UiNode{}, r::UiButton{}, MenuButton{MenuButton::Action::Options},
-            r::Style{
-                .width = 280.f,
-                .height = 45.f,
-                .direction = r::LayoutDirection::Column,
-                .justify = r::JustifyContent::Center,
-                .align = r::AlignItems::Center
-            },
-            r::UiText{.content = std::string("Options"), .font_size = 22, .font_path = {}},
-            r::ComputedLayout{},
-            r::Visibility::Visible
-        );
-
-        /* Quit Button */
-        parent.spawn(
-            r::UiNode{}, r::UiButton{}, MenuButton{MenuButton::Action::Quit},
-            r::Style{
-                .width = 280.f,
-                .height = 45.f,
-                .direction = r::LayoutDirection::Column,
-                .justify = r::JustifyContent::Center,
-                .align = r::AlignItems::Center
-            },
-            r::UiText{.content = std::string("Quit"), .font_size = 22, .font_path = {}},
-            r::ComputedLayout{},
-            r::Visibility::Visible
-        );
+    ).with_children([&](r::ecs::ChildBuilder& parent) {
+        create_menu_title(parent);
+        create_menu_button(parent, MenuButton::Action::Play, "Play");
+        create_menu_button(parent, MenuButton::Action::Options, "Options");
+        create_menu_button(parent, MenuButton::Action::Quit, "Quit");
     });
 }
 
