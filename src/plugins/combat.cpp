@@ -1,4 +1,5 @@
 #include <components.hpp>
+#include <events.hpp>
 #include <plugins/combat.hpp>
 #include <resources.hpp>
 #include <state.hpp>
@@ -7,8 +8,9 @@
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/ECS/Command.hpp>
+#include <R-Engine/ECS/Event.hpp>
 #include <R-Engine/ECS/Query.hpp>
-#include <vector>
+#include <R-Engine/ECS/RunConditions.hpp>
 
 /* ================================================================================= */
 /* Run Condition */
@@ -23,16 +25,30 @@ static bool is_in_gameplay_state(r::ecs::Res<r::State<GameState>> state)
 }
 
 /* ================================================================================= */
+/* Event Handlers */
+/* ================================================================================= */
+
+/**
+ * @brief Listens for EntityDiedEvent and despawns the corresponding entity.
+ * @details This decouples the act of destroying an entity from the logic that decides it should be destroyed.
+ */
+static void handle_entity_death(r::ecs::Commands &commands, r::ecs::EventReader<EntityDiedEvent> reader)
+{
+    for (const auto &event : reader) {
+        commands.despawn(event.entity);
+    }
+}
+
+/* ================================================================================= */
 /* Combat Systems */
 /* ================================================================================= */
 
-static void collision_system(r::ecs::Commands &commands,
+static void collision_system(r::ecs::EventWriter<EntityDiedEvent> entity_death_writer,
+    r::ecs::EventWriter<BossDefeatedEvent> boss_death_writer,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<PlayerBullet>> bullet_query,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<Enemy>> enemy_query,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Boss>> boss_query)
 {
-    std::vector<r::ecs::Entity> despawn_queue;
-
     for (auto bullet_it = bullet_query.begin(); bullet_it != bullet_query.end(); ++bullet_it) {
         auto [bullet_transform, bullet_collider, _b] = *bullet_it;
         bool bullet_collided = false;
@@ -46,14 +62,14 @@ static void collision_system(r::ecs::Commands &commands,
             float radii_sum = bullet_collider.ptr->radius + enemy_collider.ptr->radius;
 
             if (distance < radii_sum) {
-                despawn_queue.push_back(enemy_it.entity());
+                entity_death_writer.send({enemy_it.entity()});
                 bullet_collided = true;
                 break;
             }
         }
 
         if (bullet_collided) {
-            despawn_queue.push_back(bullet_it.entity());
+            entity_death_writer.send({bullet_it.entity()});
             continue;
         }
 
@@ -66,24 +82,21 @@ static void collision_system(r::ecs::Commands &commands,
             float radii_sum = bullet_collider.ptr->radius + boss_collider.ptr->radius;
 
             if (distance < radii_sum) {
-                despawn_queue.push_back(bullet_it.entity());
+                entity_death_writer.send({bullet_it.entity()});
                 health.ptr->current -= 10;
 
                 if (health.ptr->current <= 0) {
-                    despawn_queue.push_back(boss_it.entity());
+                    entity_death_writer.send({boss_it.entity()});
+                    boss_death_writer.send({});
                     r::Logger::info("Boss defeated!");
                 }
                 break;
             }
         }
     }
-
-    for (r::ecs::Entity entity : despawn_queue) {
-        commands.despawn(entity);
-    }
 }
 
-static void player_collision_system(r::ecs::ResMut<r::NextState<GameState>> next_state,
+static void player_collision_system(r::ecs::EventWriter<PlayerDiedEvent> death_writer,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<Player>> player_query,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<Enemy>> enemy_query)
 {
@@ -95,15 +108,14 @@ static void player_collision_system(r::ecs::ResMut<r::NextState<GameState>> next
 
             float sum_radii = player_collider.ptr->radius + enemy_collider.ptr->radius;
             if (distance < sum_radii) {
-                r::Logger::warn("Player collision! Game Over.");
-                next_state.ptr->set(GameState::GameOver);
+                death_writer.send({});
                 return;
             }
         }
     }
 }
 
-static void player_bullet_collision_system(r::ecs::ResMut<r::NextState<GameState>> next_state,
+static void player_bullet_collision_system(r::ecs::EventWriter<PlayerDiedEvent> death_writer,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<Player>> player_query,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<EnemyBullet>> bullet_query)
 {
@@ -115,15 +127,14 @@ static void player_bullet_collision_system(r::ecs::ResMut<r::NextState<GameState
 
             float sum_radii = player_collider.ptr->radius + bullet_collider.ptr->radius;
             if (distance < sum_radii) {
-                r::Logger::warn("Player hit by bullet! Game Over.");
-                next_state.ptr->set(GameState::GameOver);
+                death_writer.send({});
                 return;
             }
         }
     }
 }
 
-static void force_bullet_collision_system(r::ecs::Commands &commands,
+static void force_bullet_collision_system(r::ecs::EventWriter<EntityDiedEvent> entity_death_writer,
     r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::With<Force>> force_query,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<EnemyBullet>> bullet_query)
 {
@@ -131,7 +142,6 @@ static void force_bullet_collision_system(r::ecs::Commands &commands,
         return;
     }
 
-    std::vector<r::ecs::Entity> bullets_to_despawn;
     auto [force_transform, force_collider, _] = *force_query.begin();
 
     for (auto bullet_it = bullet_query.begin(); bullet_it != bullet_query.end(); ++bullet_it) {
@@ -143,16 +153,12 @@ static void force_bullet_collision_system(r::ecs::Commands &commands,
         float radii_sum = force_collider.ptr->radius + bullet_collider.ptr->radius;
 
         if (distance < radii_sum) {
-            bullets_to_despawn.push_back(bullet_it.entity());
+            entity_death_writer.send({bullet_it.entity()});
         }
-    }
-
-    for (r::ecs::Entity bullet : bullets_to_despawn) {
-        commands.despawn(bullet);
     }
 }
 
-static void force_enemy_collision_system(r::ecs::Commands &commands,
+static void force_enemy_collision_system(r::ecs::EventWriter<EntityDiedEvent> entity_death_writer,
     r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::With<Force>> force_query,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<Enemy>> enemy_query)
 {
@@ -160,7 +166,6 @@ static void force_enemy_collision_system(r::ecs::Commands &commands,
         return;
     }
 
-    std::vector<r::ecs::Entity> enemies_to_despawn;
     auto [force_transform, force_collider, _] = *force_query.begin();
 
     for (auto enemy_it = enemy_query.begin(); enemy_it != enemy_query.end(); ++enemy_it) {
@@ -172,12 +177,8 @@ static void force_enemy_collision_system(r::ecs::Commands &commands,
         float radii_sum = force_collider.ptr->radius + enemy_collider.ptr->radius;
 
         if (distance < radii_sum) {
-            enemies_to_despawn.push_back(enemy_it.entity());
+            entity_death_writer.send({enemy_it.entity()});
         }
-    }
-
-    for (r::ecs::Entity enemy : enemies_to_despawn) {
-        commands.despawn(enemy);
     }
 }
 
@@ -222,6 +223,11 @@ void CombatPlugin::build(r::Application &app)
 
         .add_systems<despawn_offscreen_system>(r::Schedule::UPDATE)
 
+        /* New event handler for despawning. Only runs when events are present. */
+        .add_systems<handle_entity_death>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::on_event<EntityDiedEvent>>()
+
+        /* The collision systems now only send events */
         .add_systems<collision_system, player_collision_system, player_bullet_collision_system, force_bullet_collision_system,
             force_enemy_collision_system>(r::Schedule::UPDATE)
         .run_if<is_in_gameplay_state>();

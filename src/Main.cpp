@@ -1,3 +1,4 @@
+#include <events.hpp>
 #include <plugins/combat.hpp>
 #include <plugins/debug.hpp>
 #include <plugins/force.hpp>
@@ -51,6 +52,9 @@ int main()
             .title = "R-Type",
             .cursor = r::WindowCursorState::Visible,
         }}))
+
+        /* Register all custom game events */
+        .add_events<PlayerDiedEvent, BossTimeReachedEvent, BossDefeatedEvent, EntityDiedEvent, UiClickEvent>()
 
         /* Add all our custom game plugins */
         .add_plugins(GameStatePlugin{})

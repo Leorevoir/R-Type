@@ -1,4 +1,5 @@
 #include <components.hpp>
+#include <events.hpp>
 #include <plugins/gameplay.hpp>
 #include <resources.hpp>
 #include <state.hpp>
@@ -8,6 +9,7 @@
 #include <R-Engine/Core/FrameTime.hpp>
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/ECS/Command.hpp>
+#include <R-Engine/ECS/Event.hpp>
 #include <R-Engine/ECS/Query.hpp>
 #include <R-Engine/ECS/RunConditions.hpp>
 #include <R-Engine/Plugins/MeshPlugin.hpp>
@@ -74,7 +76,7 @@ static void enemy_spawner_system(r::ecs::Commands& commands, r::ecs::ResMut<Enem
     }
 }
 
-static void setup_boss_fight_system(r::ecs::ResMut<r::NextState<GameState>> next_state, r::ecs::Res<r::core::FrameTime> time,
+static void setup_boss_fight_system(r::ecs::EventWriter<BossTimeReachedEvent> writer, r::ecs::Res<r::core::FrameTime> time,
                                     r::ecs::ResMut<BossSpawnTimer> spawn_timer)
 {
     if (spawn_timer.ptr->spawned) {
@@ -83,7 +85,7 @@ static void setup_boss_fight_system(r::ecs::ResMut<r::NextState<GameState>> next
     spawn_timer.ptr->time_left -= time.ptr->delta_time;
     if (spawn_timer.ptr->time_left <= 0.0f) {
         spawn_timer.ptr->spawned = true;
-        next_state.ptr->set(GameState::BossBattle);
+        writer.send({});
     }
 }
 
