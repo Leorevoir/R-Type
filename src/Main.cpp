@@ -54,7 +54,7 @@ int main()
         }}))
 
         /* Register all custom game events */
-        .add_events<PlayerDiedEvent, BossTimeReachedEvent, BossDefeatedEvent, EntityDiedEvent, UiClickEvent>()
+        .add_events<PlayerDiedEvent, BossTimeReachedEvent, BossDefeatedEvent, EntityDiedEvent>()
 
         /* Add all our custom game plugins */
         .add_plugins(GameStatePlugin{})
