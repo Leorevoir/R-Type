@@ -86,7 +86,7 @@ static void boss_spawn_system(r::ecs::Commands& commands, r::ecs::ResMut<r::Mesh
             commands.spawn(
                 Boss{},
                 BossShootTimer{},
-                Health{400, 400},
+                Health{500, 500},
                 r::Transform3d{
                     .position = {12.0f, -10.0f, 0.0f},
                     .scale = {0.5f, 0.5f, 0.5f}
@@ -114,7 +114,7 @@ static void boss_movement_system(r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::e
     }
 }
 
-static void boss_shooting_system(r::ecs::Commands& commands, r::ecs::Res<r::core::FrameTime> time, r::ecs::ResMut<r::Meshes> meshes,
+static void boss_shooting_system( r::ecs::Commands& commands, r::ecs::Res<r::core::FrameTime> time, r::ecs::Res<BossBulletAssets> bullet_assets,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Mut<BossShootTimer>, r::ecs::Ref<Health>, r::ecs::With<Boss>> query)
 {
     for (auto [transform, timer, health, _] : query) {
@@ -123,37 +123,36 @@ static void boss_shooting_system(r::ecs::Commands& commands, r::ecs::Res<r::core
         if (timer.ptr->time_left <= 0.0f) {
             timer.ptr->time_left = BossShootTimer::FIRE_RATE;
 
-            ::Mesh bullet_mesh_data = r::Mesh3d::Circle(2.0f, 16);
-            if (bullet_mesh_data.vertexCount == 0 || !bullet_mesh_data.vertices) continue;
-
-            r::MeshHandle bullet_mesh_handle = meshes.ptr->add(bullet_mesh_data);
-            if (bullet_mesh_handle == r::MeshInvalidHandle) continue;
-
-            /* Main gun */
             commands.spawn(
                 EnemyBullet{},
                 r::Transform3d{
                     .position = transform.ptr->position - r::Vec3f{1.6f, 0.0f, 0.0f},
                     .rotation = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f},
-                    .scale = {0.3f, 0.3f, 0.3f}
+                    .scale = {1.0f, 1.0f, 1.0f}
                 },
                 Velocity{{-BULLET_SPEED, 0.0f, 0.0f}},
                 Collider{.radius = 0.4f},
-                r::Mesh3d{bullet_mesh_handle, r::Color{255, 80, 220, 255}}
+                r::Mesh3d{
+                    .id = bullet_assets.ptr->small_missile,
+                    .color = r::Color{255, 255, 255, 255}, /* Yellow color for bullets */
+                    .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, -static_cast<float>(M_PI) / 2.0f}
+                }
             );
-
-            /* Second gun when damaged */
             if (health.ptr->current <= health.ptr->max / 2) {
                 commands.spawn(
                     EnemyBullet{},
                     r::Transform3d{
                         .position = transform.ptr->position + r::Vec3f{0.0f, 5.5f, 0.0f},
                         .rotation = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f},
-                        .scale = {0.6f, 0.6f, 0.6f}
+                        .scale = {0.5f, 0.5f, 0.5f}
                     },
                     Velocity{{-BULLET_SPEED, 0.0f, 0.0f}},
                     Collider{.radius = 0.8f},
-                    r::Mesh3d{bullet_mesh_handle, r::Color{255, 150, 50, 255}}
+                    r::Mesh3d{
+                        .id = bullet_assets.ptr->big_missile,
+                        .color = r::Color{255, 255, 255, 255}, /* Yellow color for bullets */
+                        .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, -static_cast<float>(M_PI) / 2.0f}
+                    }
                 );
             }
         }
@@ -167,12 +166,39 @@ static void movement_system(r::ecs::Res<r::core::FrameTime> time, r::ecs::Query<
     }
 }
 
+
+static void setup_missile_assets_system(r::ecs::Commands& commands, r::ecs::ResMut<r::Meshes> meshes)
+{
+    BossBulletAssets bullet_assets;
+
+    ::Model missile_model_data = r::Mesh3d::Glb("assets/models/BigMissiles.glb");
+    if (missile_model_data.meshCount > 0) {
+        bullet_assets.big_missile = meshes.ptr->add(missile_model_data);
+    }
+
+    if (bullet_assets.big_missile == r::MeshInvalidHandle) {
+        r::Logger::error("Failed to load big missile model !");
+    }
+
+    ::Model small_missile_model_data = r::Mesh3d::Glb("assets/models/BossRegularMissile.glb");
+    if (small_missile_model_data.meshCount > 0) {
+        bullet_assets.small_missile = meshes.ptr->add(small_missile_model_data);
+    }
+
+    if (bullet_assets.small_missile == r::MeshInvalidHandle) {
+        r::Logger::error("Failed to load regular boss missile model !");
+    }
+
+    commands.insert_resource(bullet_assets);
+}
+
 void GameplayPlugin::build(r::Application& app)
 {
     app.insert_resource(EnemySpawnTimer{})
         .insert_resource(BossSpawnTimer{})
 
         .add_systems<movement_system>(r::Schedule::UPDATE)
+        .add_systems<setup_missile_assets_system>(r::OnEnter{GameState::EnemiesBattle})
 
         .add_systems<setup_boss_fight_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()

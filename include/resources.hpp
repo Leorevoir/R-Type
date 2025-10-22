@@ -1,4 +1,5 @@
 #pragma once
+#include <R-Engine/Plugins/MeshPlugin.hpp>
 
 /* ================================================================================= */
 /* Constants & Configuration */
@@ -24,4 +25,14 @@ struct BossSpawnTimer {
 struct BossShootTimer {
         float time_left = 2.0f;
         static constexpr float FIRE_RATE = 2.0f;
+};
+
+struct PlayerBulletAssets {
+        r::MeshHandle laser_beam_handle = r::MeshInvalidHandle;
+        r::MeshHandle force_missile = r::MeshInvalidHandle;
+};
+
+struct BossBulletAssets {
+        r::MeshHandle big_missile = r::MeshInvalidHandle;
+        r::MeshHandle small_missile = r::MeshInvalidHandle;
 };

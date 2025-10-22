@@ -1,3 +1,4 @@
+#include "plugins/map.hpp"
 #include <events.hpp>
 #include <plugins/combat.hpp>
 #include <plugins/debug.hpp>
@@ -63,10 +64,11 @@ int main()
         .add_plugins(ForcePlugin{})
         .add_plugins(GameplayPlugin{})
         .add_plugins(CombatPlugin{})
-        .add_plugins(DebugPlugin{})
+        //.add_plugins(DebugPlugin{})
+        .add_plugins(MapPlugin{})
 
         /* Add the remaining core setup */
-        .add_systems<setup_core_game_system>(r::OnEnter{GameState::EnemiesBattle})
+        .add_systems<setup_core_game_system>(r::OnEnter{GameState::MainMenu})
 
         .run();
 

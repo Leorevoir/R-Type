@@ -2,6 +2,7 @@
 #include <plugins/menu.hpp>
 #include <state.hpp>
 
+#include "R-Engine/Components/Transform3d.hpp"
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/ECS/Command.hpp>
@@ -82,7 +83,7 @@ static void build_main_menu(r::ecs::Commands& cmds)
         r::Style{
             .width_pct = 100.f,
             .height_pct = 100.f,
-            .background = r::Color{0, 0, 0, 255},
+            .background = r::Color{255, 255, 255, 40},
             .margin = 0.f,
             .padding = 0.f,
             .direction = r::LayoutDirection::Column,
@@ -186,6 +187,20 @@ static void game_over_system(r::ecs::Res<r::UserInput> user_input, r::ecs::ResMu
     }
 }
 
+static void camera_follow_player_system(
+    r::ecs::ResMut<r::Camera3d> camera,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::With<Player>> player_query)
+{
+    if (player_query.size() == 0) {
+        return;
+    }
+
+    auto [player_transform, _] = *player_query.begin();
+
+    camera.ptr->position.x = player_transform.ptr->position.x;
+    camera.ptr->target.x = player_transform.ptr->position.x;
+}
+
 void MenuPlugin::build(r::Application& app)
 {
     app
@@ -206,6 +221,8 @@ void MenuPlugin::build(r::Application& app)
         .add_systems<show_game_over_ui>(r::OnEnter{GameState::GameOver})
         .add_systems<cleanup_game_over_ui>(r::OnExit{GameState::GameOver})
         .add_systems<game_over_system>(r::Schedule::UPDATE)
-        .run_if<r::run_conditions::in_state<GameState::GameOver>>();
+        .run_if<r::run_conditions::in_state<GameState::GameOver>>()
+        .add_systems<camera_follow_player_system>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::MainMenu>>();
 }
 // clang-format on

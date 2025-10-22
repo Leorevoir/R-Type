@@ -1,5 +1,6 @@
 #include <components.hpp>
 #include <plugins/force.hpp>
+#include <resources.hpp>
 #include <state.hpp>
 
 #include "R-Engine/Components/Transform3d.hpp"
@@ -161,7 +162,7 @@ static void force_autonomous_movement_system(
     }
 }
 
-static void force_shooting_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::core::FrameTime> time,
+static void force_shooting_system(r::ecs::Commands &commands, r::ecs::Res<PlayerBulletAssets> bullet_assets, r::ecs::Res<r::core::FrameTime> time,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Mut<FireCooldown>, r::ecs::Ref<Force>, r::ecs::Without<r::ecs::Parent>> query)
 {
     for (auto [transform, cooldown, force, _] : query) {
@@ -173,23 +174,17 @@ static void force_shooting_system(r::ecs::Commands &commands, r::ecs::ResMut<r::
         cooldown.ptr->timer -= time.ptr->delta_time;
         if (cooldown.ptr->timer <= 0.0f) {
             cooldown.ptr->timer = FORCE_FIRE_RATE;
-            ::Mesh bullet_mesh_data = r::Mesh3d::Circle(0.5f, 16);
-            if (bullet_mesh_data.vertexCount > 0 && bullet_mesh_data.vertices) {
-                r::MeshHandle bullet_mesh_handle = meshes.ptr->add(bullet_mesh_data);
-                if (bullet_mesh_handle != r::MeshInvalidHandle) {
-                    commands.spawn(PlayerBullet{},
-                        r::Transform3d{
-                            .position = transform.ptr->position,/* Spawn at the Force's current world position */
-                            .scale = {0.5f, 0.5f, 0.5f}},
-                        Velocity{{FORCE_BULLET_SPEED, 0.0f, 0.0f}},
-                        Collider{0.2f},
-                        r::Mesh3d{
-                            .id = bullet_mesh_handle,
-                            .color = r::Color{0, 255, 200, 255}, /* Teal color for Force bullets */
-                            .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f}
-                        });
-                }
-            }
+            commands.spawn(PlayerBullet{},
+                r::Transform3d{
+                    .position = transform.ptr->position,/* Spawn at the Force's current world position */
+                    .scale = {1.5f, 1.5f, 1.5f}},
+                Velocity{{FORCE_BULLET_SPEED, 0.0f, 0.0f}},
+                Collider{0.2f},
+                r::Mesh3d{
+                    .id = bullet_assets.ptr->force_missile,
+                    .color = r::Color{255, 255, 255, 255}, /* Teal color for Force bullets */
+                    .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, -static_cast<float>(M_PI) / 2.0f}
+                });
         }
     }
 }

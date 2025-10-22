@@ -1,5 +1,6 @@
 #include <components.hpp>
 #include <plugins/player.hpp>
+#include <resources.hpp>
 #include <state.hpp>
 
 #include "R-Engine/Components/Transform3d.hpp"
@@ -25,7 +26,7 @@
 
 static constexpr float PLAYER_SPEED = 3.5f;
 static constexpr float BULLET_SPEED = 8.0f;
-static constexpr float PLAYER_FIRE_RATE = 0.15f;
+static constexpr float PLAYER_FIRE_RATE = 0.45f;
 static constexpr float PLAYER_BOUNDS_PADDING = 0.5f;
 static constexpr float WAVE_CANNON_CHARGE_START_DELAY = 0.2f;
 static constexpr float FORCE_FRONT_OFFSET_X = 1.75f;
@@ -62,20 +63,23 @@ static void spawn_player_force(r::ecs::ChildBuilder& parent, r::ecs::ResMut<r::M
     }
 }
 
-static void fire_standard_shot(r::ecs::Commands& commands, r::ecs::ResMut<r::Meshes>& meshes, r::ecs::Ref<r::Transform3d> transform)
+static void fire_standard_shot(r::ecs::Commands& commands, r::ecs::ResMut<PlayerBulletAssets>& bullet_assets, r::ecs::Ref<r::Transform3d> transform)
 {
-    ::Mesh bullet_mesh_data = r::Mesh3d::Circle(0.5f, 16);
-    if (bullet_mesh_data.vertexCount > 0 && bullet_mesh_data.vertices) {
-        r::MeshHandle bullet_mesh_handle = meshes.ptr->add(bullet_mesh_data);
-        if (bullet_mesh_handle != r::MeshInvalidHandle) {
-            commands.spawn(PlayerBullet{},
-                r::Transform3d{.position = transform.ptr->position + r::Vec3f{0.6f, 0.0f, 0.0f}, .scale = {0.5f, 0.5f, 0.5f}},
-                Velocity{{BULLET_SPEED, 0.0f, 0.0f}}, Collider{0.2f},
-                r::Mesh3d{.id = bullet_mesh_handle,
-                    .color = r::Color{255, 200, 80, 255},
-                    .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f}});
+    /* --- Firing --- */
+    commands.spawn(
+        PlayerBullet{},
+        r::Transform3d{
+            .position = transform.ptr->position + r::Vec3f{0.6f, 0.0f, 0.0f},
+            .scale = {0.2f, 0.2f, 0.2f}
+        },
+        Velocity{{BULLET_SPEED, 0.0f, 0.0f}},
+        Collider{0.2f},
+        r::Mesh3d{
+            .id = bullet_assets.ptr->laser_beam_handle,
+            .color = r::Color{255, 255, 255, 255}, /* Yellow color for bullets */
+            .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, -static_cast<float>(M_PI) / 2.0f}
         }
-    }
+    );
 }
 
 static void fire_wave_cannon(r::ecs::Commands& commands, r::ecs::ResMut<r::Meshes>& meshes, r::ecs::Ref<r::Transform3d> transform, float charge_timer)
@@ -112,7 +116,7 @@ static void handle_player_movement(r::ecs::Mut<Velocity>& velocity, r::ecs::Res<
 }
 
 static void handle_player_firing(r::ecs::Commands& commands, r::ecs::ResMut<r::Meshes>& meshes, r::ecs::Res<r::core::FrameTime> const & time,
-    r::ecs::Ref<r::Transform3d> transform, r::ecs::Mut<FireCooldown> cooldown, r::ecs::Mut<Player> player, bool is_fire_pressed)
+    r::ecs::Ref<r::Transform3d> transform, r::ecs::Mut<FireCooldown> cooldown, r::ecs::Mut<Player> player, r::ecs::ResMut<PlayerBulletAssets>& bullet_assets, bool is_fire_pressed)
 {
     if (cooldown.ptr->timer > 0.0f) {
         cooldown.ptr->timer -= time.ptr->delta_time;
@@ -123,7 +127,7 @@ static void handle_player_firing(r::ecs::Commands& commands, r::ecs::ResMut<r::M
 
         if (player.ptr->wave_cannon_charge_timer < WAVE_CANNON_CHARGE_START_DELAY && cooldown.ptr->timer <= 0.0f) {
             cooldown.ptr->timer = PLAYER_FIRE_RATE;
-            fire_standard_shot(commands, meshes, transform);
+            fire_standard_shot(commands, bullet_assets, transform);
         }
     } else { /* Fire button was released */
         if (player.ptr->wave_cannon_charge_timer >= WAVE_CANNON_CHARGE_START_DELAY) {
@@ -192,16 +196,41 @@ static void link_force_to_player_system(
     }
 }
 
+static void setup_bullet_assets_system(r::ecs::Commands& commands, r::ecs::ResMut<r::Meshes> meshes)
+{
+    PlayerBulletAssets bullet_assets;
+
+    ::Model missile_model_data = r::Mesh3d::Glb("assets/models/PlayerMissile.glb");
+    if (missile_model_data.meshCount > 0) {
+        bullet_assets.laser_beam_handle = meshes.ptr->add(missile_model_data);
+    }
+
+    if (bullet_assets.laser_beam_handle == r::MeshInvalidHandle) {
+        r::Logger::error("Failed to load player missile model !");
+    }
+
+    ::Model missile_force_model_data = r::Mesh3d::Glb("assets/models/SmallMissile.glb");
+    if (missile_force_model_data.meshCount > 0) {
+        bullet_assets.force_missile = meshes.ptr->add(missile_force_model_data);
+    }
+
+    if (bullet_assets.force_missile == r::MeshInvalidHandle) {
+        r::Logger::error("Failed to load force small missile model !");
+    }
+
+    commands.insert_resource(bullet_assets);
+}
+
 static void player_input_system(
     r::ecs::Commands& commands, r::ecs::Res<r::UserInput> user_input, r::ecs::Res<r::InputMap> input_map,
-    r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::core::FrameTime> time, r::ecs::Query<r::ecs::Mut<Velocity>,
-        r::ecs::Ref<r::Transform3d>, r::ecs::Mut<FireCooldown>, r::ecs::Mut<Player>> query)
+    r::ecs::ResMut<PlayerBulletAssets> bullet_assets, r::ecs::Res<r::core::FrameTime> time, r::ecs::ResMut<r::Meshes> meshes,
+    r::ecs::Query<r::ecs::Mut<Velocity>, r::ecs::Ref<r::Transform3d>, r::ecs::Mut<FireCooldown>, r::ecs::Mut<Player>> query)
 {
     const bool is_fire_pressed = input_map.ptr->isActionPressed("Fire", *user_input.ptr);
 
     for (auto [velocity, transform, cooldown, player] : query) {
         handle_player_movement(velocity, input_map, user_input);
-        handle_player_firing(commands, meshes, time, transform, cooldown, player, is_fire_pressed);
+        handle_player_firing(commands, meshes, time, transform, cooldown, player, bullet_assets, is_fire_pressed);
     }
 }
 
@@ -217,7 +246,7 @@ static void screen_bounds_system(r::ecs::Query<r::ecs::Mut<r::Transform3d>, r::e
         static_cast<float>(window_config.ptr->size.width) / static_cast<float>(window_config.ptr->size.height);
     const float fovy_rad = camera.ptr->fovy * (r::R_PI / 180.0f);
 
-    const float view_height = 2.0f * distance * std::tan(fovy_rad / 2.0f);
+    const float view_height = 2.0f * distance * std::tanf(fovy_rad / 2.0f);
     const float view_width = view_height * aspect_ratio;
 
     const float half_height = view_height / 2.0f;
@@ -229,12 +258,33 @@ static void screen_bounds_system(r::ecs::Query<r::ecs::Mut<r::Transform3d>, r::e
     }
 }
 
+
+static void autoplay_player_system(r::ecs::Query<r::ecs::Mut<Velocity>, r::ecs::With<Player>> query)
+{
+    for (auto [velocity, _] : query) {
+        velocity.ptr->value = {0.5f, 0.0f, 0.0f};
+    }
+}
+
+static void cleanup_player_system(r::ecs::Commands& commands, r::ecs::Query<r::ecs::With<Player>> query)
+{
+    for (auto it = query.begin(); it != query.end(); ++it) {
+        commands.despawn(it.entity());
+    }
+}
+
 void PlayerPlugin::build(r::Application& app)
 {
     app.add_systems<spawn_player_system>(r::OnEnter{GameState::EnemiesBattle})
         .add_systems<link_force_to_player_system,
                      player_input_system, screen_bounds_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
-        .run_or<r::run_conditions::in_state<GameState::BossBattle>>();
+        .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
+        .add_systems<spawn_player_system>(r::OnEnter{GameState::MainMenu})
+        .add_systems<setup_bullet_assets_system>(r::OnEnter{GameState::EnemiesBattle})
+
+        .add_systems<autoplay_player_system>(r::Schedule::UPDATE)
+            .run_if<r::run_conditions::in_state<GameState::MainMenu>>()
+        .add_systems<cleanup_player_system>(r::OnExit{GameState::MainMenu});
 }
 // clang-format on
