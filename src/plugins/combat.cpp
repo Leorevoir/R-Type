@@ -13,18 +13,6 @@
 #include <R-Engine/ECS/RunConditions.hpp>
 
 /* ================================================================================= */
-/* Run Condition */
-/* ================================================================================= */
-
-static bool is_in_gameplay_state(r::ecs::Res<r::State<GameState>> state)
-{
-    if (!state.ptr)
-        return false;
-    auto current_state = state.ptr->current();
-    return current_state == GameState::EnemiesBattle || current_state == GameState::BossBattle;
-}
-
-/* ================================================================================= */
 /* Event Handlers */
 /* ================================================================================= */
 
@@ -40,20 +28,15 @@ static void handle_entity_death(r::ecs::Commands &commands, r::ecs::EventReader<
 }
 
 /* ================================================================================= */
-/* Combat Systems */
+/* Combat Systems :: Helpers */
 /* ================================================================================= */
 
-static void collision_system(r::ecs::EventWriter<EntityDiedEvent> entity_death_writer,
-    r::ecs::EventWriter<BossDefeatedEvent> boss_death_writer,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<PlayerBullet>> bullet_query,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<Enemy>> enemy_query,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Boss>> boss_query)
+static void handle_bullet_vs_enemy_collisions(r::ecs::EventWriter<EntityDiedEvent> &entity_death_writer,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<PlayerBullet>> &bullet_query,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<Enemy>> &enemy_query)
 {
     for (auto bullet_it = bullet_query.begin(); bullet_it != bullet_query.end(); ++bullet_it) {
         auto [bullet_transform, bullet_collider, _b] = *bullet_it;
-        bool bullet_collided = false;
-
-        /* Collision with ennemis */
         for (auto enemy_it = enemy_query.begin(); enemy_it != enemy_query.end(); ++enemy_it) {
             auto [enemy_transform, enemy_collider, _e] = *enemy_it;
             r::Vec3f bullet_center = bullet_transform.ptr->position + bullet_collider.ptr->offset;
@@ -63,17 +46,21 @@ static void collision_system(r::ecs::EventWriter<EntityDiedEvent> entity_death_w
 
             if (distance < radii_sum) {
                 entity_death_writer.send({enemy_it.entity()});
-                bullet_collided = true;
-                break;
+                entity_death_writer.send({bullet_it.entity()});
+                goto next_bullet; /* Using goto to break from outer loop */
             }
         }
+    next_bullet:;
+    }
+}
 
-        if (bullet_collided) {
-            entity_death_writer.send({bullet_it.entity()});
-            continue;
-        }
-
-        /* Collision with boss */
+static void handle_bullet_vs_boss_collisions(r::ecs::EventWriter<EntityDiedEvent> &entity_death_writer,
+    r::ecs::EventWriter<BossDefeatedEvent> &boss_death_writer,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<PlayerBullet>> &bullet_query,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Boss>> &boss_query)
+{
+    for (auto bullet_it = bullet_query.begin(); bullet_it != bullet_query.end(); ++bullet_it) {
+        auto [bullet_transform, bullet_collider, _b] = *bullet_it;
         for (auto boss_it = boss_query.begin(); boss_it != boss_query.end(); ++boss_it) {
             auto [boss_transform, boss_collider, health, _boss] = *boss_it;
             r::Vec3f bullet_center = bullet_transform.ptr->position + bullet_collider.ptr->offset;
@@ -83,17 +70,71 @@ static void collision_system(r::ecs::EventWriter<EntityDiedEvent> entity_death_w
 
             if (distance < radii_sum) {
                 entity_death_writer.send({bullet_it.entity()});
-                health.ptr->current -= 10;
+                health.ptr->current -= 1;
 
                 if (health.ptr->current <= 0) {
                     entity_death_writer.send({boss_it.entity()});
                     boss_death_writer.send({});
-                    r::Logger::info("Boss defeated!");
                 }
-                break;
+                break; /* A bullet can only hit one boss */
             }
         }
     }
+}
+
+static void handle_beam_collisions(r::ecs::EventWriter<EntityDiedEvent> &entity_death_writer,
+    r::ecs::EventWriter<BossDefeatedEvent> &boss_death_writer,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Ref<WaveCannonBeam>> &beam_query,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<Enemy>> &enemy_query,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Boss>> &boss_query)
+{
+    for (auto beam_it = beam_query.begin(); beam_it != beam_query.end(); ++beam_it) {
+        auto [beam_transform, beam_collider, beam] = *beam_it;
+        r::Vec3f beam_center = beam_transform.ptr->position + beam_collider.ptr->offset;
+
+        /* Collision with enemies (penetrating) */
+        for (auto enemy_it = enemy_query.begin(); enemy_it != enemy_query.end(); ++enemy_it) {
+            auto [enemy_transform, enemy_collider, _e] = *enemy_it;
+            r::Vec3f enemy_center = enemy_transform.ptr->position + enemy_collider.ptr->offset;
+            if ((beam_center - enemy_center).length() < beam_collider.ptr->radius + enemy_collider.ptr->radius) {
+                entity_death_writer.send({enemy_it.entity()});
+            }
+        }
+
+        /* Collision with boss (not penetrating) */
+        for (auto boss_it = boss_query.begin(); boss_it != boss_query.end(); ++boss_it) {
+            auto [boss_transform, boss_collider, health, _boss] = *boss_it;
+            r::Vec3f boss_center = boss_transform.ptr->position + boss_collider.ptr->offset;
+            if ((beam_center - boss_center).length() < beam_collider.ptr->radius + boss_collider.ptr->radius) {
+                health.ptr->current -= beam.ptr->damage;
+                entity_death_writer.send({beam_it.entity()});
+
+                if (health.ptr->current <= 0) {
+                    entity_death_writer.send({boss_it.entity()});
+                    boss_death_writer.send({});
+                }
+                /* Beam is destroyed upon hitting boss, so we skip to the next beam. */
+                goto next_beam_loop;
+            }
+        }
+    next_beam_loop:;
+    }
+}
+
+/* ================================================================================= */
+/* Combat Systems */
+/* ================================================================================= */
+
+static void collision_system(r::ecs::EventWriter<EntityDiedEvent> entity_death_writer,
+    r::ecs::EventWriter<BossDefeatedEvent> boss_death_writer,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<PlayerBullet>> bullet_query,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Ref<WaveCannonBeam>> beam_query,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<Enemy>> enemy_query,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Boss>> boss_query)
+{
+    handle_bullet_vs_enemy_collisions(entity_death_writer, bullet_query, enemy_query);
+    handle_bullet_vs_boss_collisions(entity_death_writer, boss_death_writer, bullet_query, boss_query);
+    handle_beam_collisions(entity_death_writer, boss_death_writer, beam_query, enemy_query, boss_query);
 }
 
 static void player_collision_system(r::ecs::EventWriter<PlayerDiedEvent> death_writer,
@@ -194,20 +235,22 @@ static void despawn_offscreen_system(r::ecs::Commands &commands,
     }
 }
 
+template<typename T>
+static void despawn_all_entities_with(r::ecs::Commands &commands, r::ecs::Query<r::ecs::With<T>> &query)
+{
+    for (auto it = query.begin(); it != query.end(); ++it) {
+        commands.despawn(it.entity());
+    }
+}
+
 static void cleanup_system(r::ecs::Commands &commands, r::ecs::ResMut<EnemySpawnTimer> spawn_timer,
     r::ecs::ResMut<BossSpawnTimer> boss_spawn_timer, r::ecs::Query<r::ecs::With<Enemy>> enemy_query,
     r::ecs::Query<r::ecs::With<PlayerBullet>> player_bullet_query, r::ecs::Query<r::ecs::With<EnemyBullet>> enemy_bullet_query,
     r::ecs::Query<r::ecs::Mut<r::Transform3d>, r::ecs::With<Player>> player_query)
 {
-    for (auto it = enemy_query.begin(); it != enemy_query.end(); ++it) {
-        commands.despawn(it.entity());
-    }
-    for (auto it = player_bullet_query.begin(); it != player_bullet_query.end(); ++it) {
-        commands.despawn(it.entity());
-    }
-    for (auto it = enemy_bullet_query.begin(); it != enemy_bullet_query.end(); ++it) {
-        commands.despawn(it.entity());
-    }
+    despawn_all_entities_with<Enemy>(commands, enemy_query);
+    despawn_all_entities_with<PlayerBullet>(commands, player_bullet_query);
+    despawn_all_entities_with<EnemyBullet>(commands, enemy_bullet_query);
 
     for (auto [transform, _] : player_query) {
         transform.ptr->position = {-5.0f, 0.0f, 0.0f};
@@ -230,5 +273,6 @@ void CombatPlugin::build(r::Application &app)
         /* The collision systems now only send events */
         .add_systems<collision_system, player_collision_system, player_bullet_collision_system, force_bullet_collision_system,
             force_enemy_collision_system>(r::Schedule::UPDATE)
-        .run_if<is_in_gameplay_state>();
+        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
+        .run_or<r::run_conditions::in_state<GameState::BossBattle>>();
 }

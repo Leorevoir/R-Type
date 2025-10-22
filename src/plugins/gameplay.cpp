@@ -28,19 +28,6 @@ static constexpr float BOSS_UPPER_BOUND = 4.0f;
 static constexpr float BOSS_LOWER_BOUND = -15.0f;
 
 /* ================================================================================= */
-/* Run Condition */
-/* ================================================================================= */
-
-static bool is_in_gameplay_state(r::ecs::Res<r::State<GameState>> state)
-{
-    if (!state.ptr) {
-        return false;
-    }
-    auto current_state = state.ptr->current();
-    return current_state == GameState::EnemiesBattle || current_state == GameState::BossBattle;
-}
-
-/* ================================================================================= */
 /* Gameplay Systems */
 /* ================================================================================= */
 
@@ -116,51 +103,58 @@ static void boss_spawn_system(r::ecs::Commands& commands, r::ecs::ResMut<r::Mesh
     }
 }
 
-static void boss_ai_system(
-    r::ecs::Commands& commands, r::ecs::Res<r::core::FrameTime> time, r::ecs::ResMut<r::Meshes> meshes,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Mut<Velocity>, r::ecs::Mut<BossShootTimer>, r::ecs::Ref<Health>, r::ecs::With<Boss>> query)
+static void boss_movement_system(r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Mut<Velocity>, r::ecs::With<Boss>> query)
 {
-    for (auto [transform, velocity, timer, health, _] : query) {
+    for (auto [transform, velocity, _] : query) {
         if (transform.ptr->position.y > BOSS_UPPER_BOUND && velocity.ptr->value.y > 0) {
             velocity.ptr->value.y *= -1;
         } else if (transform.ptr->position.y < BOSS_LOWER_BOUND && velocity.ptr->value.y < 0) {
             velocity.ptr->value.y *= -1;
         }
+    }
+}
 
+static void boss_shooting_system(r::ecs::Commands& commands, r::ecs::Res<r::core::FrameTime> time, r::ecs::ResMut<r::Meshes> meshes,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Mut<BossShootTimer>, r::ecs::Ref<Health>, r::ecs::With<Boss>> query)
+{
+    for (auto [transform, timer, health, _] : query) {
         timer.ptr->time_left -= time.ptr->delta_time;
 
         if (timer.ptr->time_left <= 0.0f) {
             timer.ptr->time_left = BossShootTimer::FIRE_RATE;
 
             ::Mesh bullet_mesh_data = r::Mesh3d::Circle(2.0f, 16);
-            if (bullet_mesh_data.vertexCount > 0 && bullet_mesh_data.vertices) {
-                r::MeshHandle bullet_mesh_handle = meshes.ptr->add(bullet_mesh_data);
-                if (bullet_mesh_handle != r::MeshInvalidHandle) {
-                    commands.spawn(
-                        EnemyBullet{},
-                        r::Transform3d{
-                            .position = transform.ptr->position - r::Vec3f{1.6f, 0.0f, 0.0f},
-                            .rotation = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f},
-                            .scale = {0.3f, 0.3f, 0.3f}
-                        },
-                        Velocity{{-BULLET_SPEED, 0.0f, 0.0f}},
-                        Collider{.radius = 0.4f},
-                        r::Mesh3d{bullet_mesh_handle, r::Color{255, 80, 220, 255}}
-                    );
-                    if (health.ptr->current <= health.ptr->max / 2) {
-                        commands.spawn(
-                            EnemyBullet{},
-                            r::Transform3d{
-                                .position = transform.ptr->position + r::Vec3f{0.0f, 5.5f, 0.0f},
-                                .rotation = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f},
-                                .scale = {0.6f, 0.6f, 0.6f}
-                            },
-                            Velocity{{-BULLET_SPEED, 0.0f, 0.0f}},
-                            Collider{.radius = 0.8f},
-                            r::Mesh3d{bullet_mesh_handle, r::Color{255, 150, 50, 255}}
-                        );
-                    }
-                }
+            if (bullet_mesh_data.vertexCount == 0 || !bullet_mesh_data.vertices) continue;
+
+            r::MeshHandle bullet_mesh_handle = meshes.ptr->add(bullet_mesh_data);
+            if (bullet_mesh_handle == r::MeshInvalidHandle) continue;
+
+            /* Main gun */
+            commands.spawn(
+                EnemyBullet{},
+                r::Transform3d{
+                    .position = transform.ptr->position - r::Vec3f{1.6f, 0.0f, 0.0f},
+                    .rotation = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f},
+                    .scale = {0.3f, 0.3f, 0.3f}
+                },
+                Velocity{{-BULLET_SPEED, 0.0f, 0.0f}},
+                Collider{.radius = 0.4f},
+                r::Mesh3d{bullet_mesh_handle, r::Color{255, 80, 220, 255}}
+            );
+
+            /* Second gun when damaged */
+            if (health.ptr->current <= health.ptr->max / 2) {
+                commands.spawn(
+                    EnemyBullet{},
+                    r::Transform3d{
+                        .position = transform.ptr->position + r::Vec3f{0.0f, 5.5f, 0.0f},
+                        .rotation = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f},
+                        .scale = {0.6f, 0.6f, 0.6f}
+                    },
+                    Velocity{{-BULLET_SPEED, 0.0f, 0.0f}},
+                    Collider{.radius = 0.8f},
+                    r::Mesh3d{bullet_mesh_handle, r::Color{255, 150, 50, 255}}
+                );
             }
         }
     }
@@ -181,13 +175,13 @@ void GameplayPlugin::build(r::Application& app)
         .add_systems<movement_system>(r::Schedule::UPDATE)
 
         .add_systems<setup_boss_fight_system>(r::Schedule::UPDATE)
-        .run_if<is_in_gameplay_state>()
+        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
 
         .add_systems<enemy_spawner_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
 
         .add_systems<boss_spawn_system>(r::OnEnter(GameState::BossBattle))
-        .add_systems<boss_ai_system>(r::Schedule::UPDATE)
+        .add_systems<boss_movement_system, boss_shooting_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::BossBattle>>();
 }
 // clang-format on

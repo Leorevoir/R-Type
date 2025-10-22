@@ -8,11 +8,13 @@
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/ECS/Command.hpp>
 #include <R-Engine/ECS/Query.hpp>
+#include <R-Engine/ECS/RunConditions.hpp>
 #include <R-Engine/Maths/Quaternion.hpp>
 #include <R-Engine/Plugins/InputPlugin.hpp>
 #include <R-Engine/Plugins/MeshPlugin.hpp>
 #include <R-Engine/Plugins/RenderPlugin.hpp>
 #include <R-Engine/Plugins/WindowPlugin.hpp>
+#include <algorithm>
 #include <cmath>
 
 // clang-format off
@@ -25,20 +27,112 @@ static constexpr float PLAYER_SPEED = 3.5f;
 static constexpr float BULLET_SPEED = 8.0f;
 static constexpr float PLAYER_FIRE_RATE = 0.15f;
 static constexpr float PLAYER_BOUNDS_PADDING = 0.5f;
+static constexpr float WAVE_CANNON_CHARGE_START_DELAY = 0.2f;
 static constexpr float FORCE_FRONT_OFFSET_X = 1.75f;
 
 /* ================================================================================= */
-/* Run Condition */
+/* Player Systems :: Helpers */
 /* ================================================================================= */
 
-static bool is_in_gameplay_state(r::ecs::Res<r::State<GameState>> state)
+static void spawn_player_force(r::ecs::ChildBuilder& parent, r::ecs::ResMut<r::Meshes>& meshes, r::ecs::Entity owner_id)
 {
-    if (!state.ptr) {
-        return false;
+    ::Model force_model_data = r::Mesh3d::Glb("assets/models/force.glb");
+    if (force_model_data.meshCount > 0) {
+        r::MeshHandle force_mesh_handle = meshes.ptr->add(force_model_data);
+        if (force_mesh_handle != r::MeshInvalidHandle) {
+            parent.spawn(
+                Force{
+                    .is_attached = true,
+                    .is_front_attachment = true,
+                    .owner = owner_id
+                },
+                FireCooldown{},
+                r::Transform3d{
+                    .position = {FORCE_FRONT_OFFSET_X, 0.0f, 0.0f},
+                    .scale = {0.3f, 0.3f, 0.3f}
+                },
+                Collider{.radius = 1.0f},
+                r::Mesh3d{
+                    .id = force_mesh_handle,
+                    .color = r::Color{255, 120, 0, 255},
+                    .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, 0.0f}
+                }
+            );
+        }
     }
-    auto current_state = state.ptr->current();
-    return current_state == GameState::EnemiesBattle || current_state == GameState::BossBattle;
 }
+
+static void fire_standard_shot(r::ecs::Commands& commands, r::ecs::ResMut<r::Meshes>& meshes, r::ecs::Ref<r::Transform3d> transform)
+{
+    ::Mesh bullet_mesh_data = r::Mesh3d::Circle(0.5f, 16);
+    if (bullet_mesh_data.vertexCount > 0 && bullet_mesh_data.vertices) {
+        r::MeshHandle bullet_mesh_handle = meshes.ptr->add(bullet_mesh_data);
+        if (bullet_mesh_handle != r::MeshInvalidHandle) {
+            commands.spawn(PlayerBullet{},
+                r::Transform3d{.position = transform.ptr->position + r::Vec3f{0.6f, 0.0f, 0.0f}, .scale = {0.5f, 0.5f, 0.5f}},
+                Velocity{{BULLET_SPEED, 0.0f, 0.0f}}, Collider{0.2f},
+                r::Mesh3d{.id = bullet_mesh_handle,
+                    .color = r::Color{255, 200, 80, 255},
+                    .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f}});
+        }
+    }
+}
+
+static void fire_wave_cannon(r::ecs::Commands& commands, r::ecs::ResMut<r::Meshes>& meshes, r::ecs::Ref<r::Transform3d> transform, float charge_timer)
+{
+    float charge_duration = charge_timer - WAVE_CANNON_CHARGE_START_DELAY;
+    charge_duration = std::min(charge_duration, 2.0f); /* Max charge of 2s */
+
+    float size_multiplier = 1.0f + (charge_duration / 2.0f); /* Max charge -> 2x size */
+    int damage = 10 + static_cast<int>(charge_duration * 45); /* Max charge -> 100 damage */
+
+    ::Mesh beam_mesh_data = r::Mesh3d::Cube(1.0f);
+    r::MeshHandle beam_mesh_handle = meshes.ptr->add(beam_mesh_data);
+    if (beam_mesh_handle != r::MeshInvalidHandle) {
+        commands.spawn(WaveCannonBeam{.charge_level = charge_duration, .damage = damage},
+            r::Transform3d{.position = transform.ptr->position + r::Vec3f{2.0f * size_multiplier, 0.0f, 0.0f},
+                .scale = {2.5f * size_multiplier, 0.4f * size_multiplier, 1.0f}},
+            Velocity{{15.0f, 0.0f, 0.0f}}, Collider{.radius = 0.2f * size_multiplier},
+            r::Mesh3d{
+                .id = beam_mesh_handle,
+                .color = r::Color{98, 221, 255, 255}, /* R-Type cyan */
+            });
+    }
+}
+
+static void handle_player_movement(r::ecs::Mut<Velocity>& velocity, r::ecs::Res<r::InputMap> const & input_map, r::ecs::Res<r::UserInput> const & user_input)
+{
+    r::Vec3f direction = {0.0f, 0.0f, 0.0f};
+    if (input_map.ptr->isActionPressed("MoveUp", *user_input.ptr)) direction.y += 1.0f;
+    if (input_map.ptr->isActionPressed("MoveDown", *user_input.ptr)) direction.y -= 1.0f;
+    if (input_map.ptr->isActionPressed("MoveLeft", *user_input.ptr)) direction.x -= 1.0f;
+    if (input_map.ptr->isActionPressed("MoveRight", *user_input.ptr)) direction.x += 1.0f;
+
+    velocity.ptr->value = (direction.length() > 0.0f) ? direction.normalize() * PLAYER_SPEED : r::Vec3f{0.0f, 0.0f, 0.0f};
+}
+
+static void handle_player_firing(r::ecs::Commands& commands, r::ecs::ResMut<r::Meshes>& meshes, r::ecs::Res<r::core::FrameTime> const & time,
+    r::ecs::Ref<r::Transform3d> transform, r::ecs::Mut<FireCooldown> cooldown, r::ecs::Mut<Player> player, bool is_fire_pressed)
+{
+    if (cooldown.ptr->timer > 0.0f) {
+        cooldown.ptr->timer -= time.ptr->delta_time;
+    }
+
+    if (is_fire_pressed) {
+        player.ptr->wave_cannon_charge_timer += time.ptr->delta_time;
+
+        if (player.ptr->wave_cannon_charge_timer < WAVE_CANNON_CHARGE_START_DELAY && cooldown.ptr->timer <= 0.0f) {
+            cooldown.ptr->timer = PLAYER_FIRE_RATE;
+            fire_standard_shot(commands, meshes, transform);
+        }
+    } else { /* Fire button was released */
+        if (player.ptr->wave_cannon_charge_timer >= WAVE_CANNON_CHARGE_START_DELAY) {
+            fire_wave_cannon(commands, meshes, transform, player.ptr->wave_cannon_charge_timer);
+        }
+        player.ptr->wave_cannon_charge_timer = 0.0f; /* Reset timer on release */
+    }
+}
+
 
 /* ================================================================================= */
 /* Player Systems */
@@ -63,37 +157,12 @@ static void spawn_player_system(r::ecs::Commands& commands, r::ecs::ResMut<r::Me
                 r::Mesh3d{
                     .id = player_mesh_handle,
                     .color = r::Color{255, 255, 255, 255},
-                    .rotation_offset = {0.0f, static_cast<float>(M_PI) / 2.0f, 0.0f} /* Visual rotation 90 degrees Y */
+                    .rotation_offset = {0.0f, static_cast<float>(M_PI) / 2.0f, 0.0f}
                 }
             );
-            r::MeshHandle force_mesh_handle = r::MeshInvalidHandle;
-            ::Model force_model_data = r::Mesh3d::Glb("assets/models/force.glb");
-            if (force_model_data.meshCount > 0) {
-                force_mesh_handle = meshes.ptr->add(force_model_data);
-            }
-
-            if (force_mesh_handle != r::MeshInvalidHandle) {
-                player_cmds.with_children([&](r::ecs::ChildBuilder& parent) {
-                    parent.spawn(
-                        Force{
-                            .is_attached = true,
-                            .is_front_attachment = true,
-                            .owner = player_cmds.id()
-                        },
-                        FireCooldown{},
-                        r::Transform3d{
-                            .position = {FORCE_FRONT_OFFSET_X, 0.0f, 0.0f},
-                            .scale = {0.3f, 0.3f, 0.3f}
-                        },
-                        Collider{.radius = 1.0f},
-                        r::Mesh3d{
-                            .id = force_mesh_handle,
-                            .color = r::Color{255, 120, 0, 255},
-                            .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, 0.0f}
-                        }
-                    );
-                });
-            }
+            player_cmds.with_children([&](r::ecs::ChildBuilder& parent) {
+                spawn_player_force(parent, meshes, player_cmds.id());
+            });
         }
     }
 }
@@ -125,56 +194,14 @@ static void link_force_to_player_system(
 
 static void player_input_system(
     r::ecs::Commands& commands, r::ecs::Res<r::UserInput> user_input, r::ecs::Res<r::InputMap> input_map,
-    r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::core::FrameTime> time,
-    r::ecs::Query<r::ecs::Mut<Velocity>, r::ecs::Ref<r::Transform3d>, r::ecs::Mut<FireCooldown>, r::ecs::With<Player>> query)
+    r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::core::FrameTime> time, r::ecs::Query<r::ecs::Mut<Velocity>,
+        r::ecs::Ref<r::Transform3d>, r::ecs::Mut<FireCooldown>, r::ecs::Mut<Player>> query)
 {
-    for (auto [velocity, transform, cooldown, _] : query) {
-        /* --- Cooldown --- */
-        if (cooldown.ptr->timer > 0.0f) {
-            cooldown.ptr->timer -= time.ptr->delta_time;
-        }
+    const bool is_fire_pressed = input_map.ptr->isActionPressed("Fire", *user_input.ptr);
 
-        /* --- Movement --- */
-        r::Vec3f direction = {0.0f, 0.0f, 0.0f};
-        if (input_map.ptr->isActionPressed("MoveUp", *user_input.ptr)) {
-            direction.y += 1.0f;
-        }
-        if (input_map.ptr->isActionPressed("MoveDown", *user_input.ptr)) {
-            direction.y -= 1.0f;
-        }
-        if (input_map.ptr->isActionPressed("MoveLeft", *user_input.ptr)) {
-            direction.x -= 1.0f;
-        }
-        if (input_map.ptr->isActionPressed("MoveRight", *user_input.ptr)) {
-            direction.x += 1.0f;
-        }
-
-        velocity.ptr->value = (direction.length() > 0.0f) ? direction.normalize() * PLAYER_SPEED : r::Vec3f{0.0f, 0.0f, 0.0f};
-
-        /* --- Firing --- */
-        if (input_map.ptr->isActionPressed("Fire", *user_input.ptr) && cooldown.ptr->timer <= 0.0f) {
-            cooldown.ptr->timer = PLAYER_FIRE_RATE;
-            ::Mesh bullet_mesh_data = r::Mesh3d::Circle(0.5f, 16);
-            if (bullet_mesh_data.vertexCount > 0 && bullet_mesh_data.vertices) {
-                r::MeshHandle bullet_mesh_handle = meshes.ptr->add(bullet_mesh_data);
-                if (bullet_mesh_handle != r::MeshInvalidHandle) {
-                    commands.spawn(
-                        PlayerBullet{},
-                        r::Transform3d{
-                            .position = transform.ptr->position + r::Vec3f{0.6f, 0.0f, 0.0f},
-                            .scale = {0.5f, 0.5f, 0.5f}
-                        },
-                        Velocity{{BULLET_SPEED, 0.0f, 0.0f}},
-                        Collider{0.2f},
-                        r::Mesh3d{
-                            .id = bullet_mesh_handle,
-                            .color = r::Color{255, 200, 80, 255}, /* Yellow color for bullets */
-                            .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f}
-                        }
-                    );
-                }
-            }
-        }
+    for (auto [velocity, transform, cooldown, player] : query) {
+        handle_player_movement(velocity, input_map, user_input);
+        handle_player_firing(commands, meshes, time, transform, cooldown, player, is_fire_pressed);
     }
 }
 
@@ -197,21 +224,8 @@ static void screen_bounds_system(r::ecs::Query<r::ecs::Mut<r::Transform3d>, r::e
     const float half_width = view_width / 2.0f;
 
     for (auto [transform, _] : query) {
-        /* Clamp X position */
-        if (transform.ptr->position.x < -half_width + PLAYER_BOUNDS_PADDING) {
-            transform.ptr->position.x = -half_width + PLAYER_BOUNDS_PADDING;
-        }
-        if (transform.ptr->position.x > half_width - PLAYER_BOUNDS_PADDING) {
-            transform.ptr->position.x = half_width - PLAYER_BOUNDS_PADDING;
-        }
-
-        /* Clamp Y position */
-        if (transform.ptr->position.y < -half_height + PLAYER_BOUNDS_PADDING) {
-            transform.ptr->position.y = -half_height + PLAYER_BOUNDS_PADDING;
-        }
-        if (transform.ptr->position.y > half_height - PLAYER_BOUNDS_PADDING) {
-            transform.ptr->position.y = half_height - PLAYER_BOUNDS_PADDING;
-        }
+        transform.ptr->position.x = std::clamp(transform.ptr->position.x, -half_width + PLAYER_BOUNDS_PADDING, half_width - PLAYER_BOUNDS_PADDING);
+        transform.ptr->position.y = std::clamp(transform.ptr->position.y, -half_height + PLAYER_BOUNDS_PADDING, half_height - PLAYER_BOUNDS_PADDING);
     }
 }
 
@@ -220,6 +234,7 @@ void PlayerPlugin::build(r::Application& app)
     app.add_systems<spawn_player_system>(r::OnEnter{GameState::EnemiesBattle})
         .add_systems<link_force_to_player_system,
                      player_input_system, screen_bounds_system>(r::Schedule::UPDATE)
-        .run_if<is_in_gameplay_state>();
+        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
+        .run_or<r::run_conditions::in_state<GameState::BossBattle>>();
 }
 // clang-format on
