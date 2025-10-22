@@ -13,18 +13,6 @@
 #include <R-Engine/ECS/RunConditions.hpp>
 
 /* ================================================================================= */
-/* Run Condition */
-/* ================================================================================= */
-
-static bool is_in_gameplay_state(r::ecs::Res<r::State<GameState>> state)
-{
-    if (!state.ptr)
-        return false;
-    auto current_state = state.ptr->current();
-    return current_state == GameState::EnemiesBattle || current_state == GameState::BossBattle;
-}
-
-/* ================================================================================= */
 /* Event Handlers */
 /* ================================================================================= */
 
@@ -285,5 +273,6 @@ void CombatPlugin::build(r::Application &app)
         /* The collision systems now only send events */
         .add_systems<collision_system, player_collision_system, player_bullet_collision_system, force_bullet_collision_system,
             force_enemy_collision_system>(r::Schedule::UPDATE)
-        .run_if<is_in_gameplay_state>();
+        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
+        .run_or<r::run_conditions::in_state<GameState::BossBattle>>();
 }

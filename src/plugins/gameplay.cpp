@@ -28,19 +28,6 @@ static constexpr float BOSS_UPPER_BOUND = 4.0f;
 static constexpr float BOSS_LOWER_BOUND = -15.0f;
 
 /* ================================================================================= */
-/* Run Condition */
-/* ================================================================================= */
-
-static bool is_in_gameplay_state(r::ecs::Res<r::State<GameState>> state)
-{
-    if (!state.ptr) {
-        return false;
-    }
-    auto current_state = state.ptr->current();
-    return current_state == GameState::EnemiesBattle || current_state == GameState::BossBattle;
-}
-
-/* ================================================================================= */
 /* Gameplay Systems */
 /* ================================================================================= */
 
@@ -188,7 +175,7 @@ void GameplayPlugin::build(r::Application& app)
         .add_systems<movement_system>(r::Schedule::UPDATE)
 
         .add_systems<setup_boss_fight_system>(r::Schedule::UPDATE)
-        .run_if<is_in_gameplay_state>()
+        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
 
         .add_systems<enemy_spawner_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()

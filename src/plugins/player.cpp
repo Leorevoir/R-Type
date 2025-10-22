@@ -8,6 +8,7 @@
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/ECS/Command.hpp>
 #include <R-Engine/ECS/Query.hpp>
+#include <R-Engine/ECS/RunConditions.hpp>
 #include <R-Engine/Maths/Quaternion.hpp>
 #include <R-Engine/Plugins/InputPlugin.hpp>
 #include <R-Engine/Plugins/MeshPlugin.hpp>
@@ -28,19 +29,6 @@ static constexpr float PLAYER_FIRE_RATE = 0.15f;
 static constexpr float PLAYER_BOUNDS_PADDING = 0.5f;
 static constexpr float WAVE_CANNON_CHARGE_START_DELAY = 0.2f;
 static constexpr float FORCE_FRONT_OFFSET_X = 1.75f;
-
-/* ================================================================================= */
-/* Run Condition */
-/* ================================================================================= */
-
-static bool is_in_gameplay_state(r::ecs::Res<r::State<GameState>> state)
-{
-    if (!state.ptr) {
-        return false;
-    }
-    auto current_state = state.ptr->current();
-    return current_state == GameState::EnemiesBattle || current_state == GameState::BossBattle;
-}
 
 /* ================================================================================= */
 /* Player Systems :: Helpers */
@@ -246,6 +234,7 @@ void PlayerPlugin::build(r::Application& app)
     app.add_systems<spawn_player_system>(r::OnEnter{GameState::EnemiesBattle})
         .add_systems<link_force_to_player_system,
                      player_input_system, screen_bounds_system>(r::Schedule::UPDATE)
-        .run_if<is_in_gameplay_state>();
+        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
+        .run_or<r::run_conditions::in_state<GameState::BossBattle>>();
 }
 // clang-format on
