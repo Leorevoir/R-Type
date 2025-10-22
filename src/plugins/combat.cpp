@@ -246,15 +246,17 @@ static void despawn_all_entities_with(r::ecs::Commands &commands, r::ecs::Query<
 static void cleanup_system(r::ecs::Commands &commands, r::ecs::ResMut<EnemySpawnTimer> spawn_timer,
     r::ecs::ResMut<BossSpawnTimer> boss_spawn_timer, r::ecs::Query<r::ecs::With<Enemy>> enemy_query,
     r::ecs::Query<r::ecs::With<PlayerBullet>> player_bullet_query, r::ecs::Query<r::ecs::With<EnemyBullet>> enemy_bullet_query,
-    r::ecs::Query<r::ecs::Mut<r::Transform3d>, r::ecs::With<Player>> player_query)
+    r::ecs::Query<r::ecs::With<WaveCannonBeam>> wave_cannon_query, r::ecs::Query<r::ecs::With<Player>> player_query,
+    r::ecs::Query<r::ecs::With<Force>> force_query, r::ecs::Query<r::ecs::With<Boss>> boss_query)
 {
     despawn_all_entities_with<Enemy>(commands, enemy_query);
     despawn_all_entities_with<PlayerBullet>(commands, player_bullet_query);
     despawn_all_entities_with<EnemyBullet>(commands, enemy_bullet_query);
+    despawn_all_entities_with<WaveCannonBeam>(commands, wave_cannon_query);
+    despawn_all_entities_with<Player>(commands, player_query);
+    despawn_all_entities_with<Force>(commands, force_query);
+    despawn_all_entities_with<Boss>(commands, boss_query);
 
-    for (auto [transform, _] : player_query) {
-        transform.ptr->position = {-5.0f, 0.0f, 0.0f};
-    }
     spawn_timer.ptr->time_left = ENEMY_SPAWN_INTERVAL;
     boss_spawn_timer.ptr->time_left = BOSS_SPAWN_TIME;
     boss_spawn_timer.ptr->spawned = false;
