@@ -57,3 +57,14 @@ struct Health {
         int current;
         int max;
 };
+
+struct BlackBuilding {        
+};
+
+struct Background {
+    float scroll_speed = 2.0f;
+};
+
+struct ScrollingScenery {
+    float scroll_speed = 4.0f;
+};

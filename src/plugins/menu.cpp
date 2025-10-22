@@ -14,6 +14,7 @@
 #include <R-Engine/UI/Button.hpp>
 #include <R-Engine/UI/Components.hpp>
 #include <R-Engine/UI/Image.hpp>
+#include "R-Engine/Components/Transform3d.hpp"
 #include <R-Engine/UI/InputState.hpp>
 #include <R-Engine/UI/Text.hpp>
 #include <R-Engine/UI/Theme.hpp>
@@ -51,7 +52,7 @@ static void build_main_menu(r::ecs::Commands& cmds)
         r::Style{
             .width_pct = 100.f,
             .height_pct = 100.f,
-            .background = r::Color{0, 0, 0, 255},
+            .background = r::Color{255, 255, 255, 40},
             .margin = 0.f,
             .padding = 0.f,
             .direction = r::LayoutDirection::Column,
@@ -126,16 +127,16 @@ static void build_main_menu(r::ecs::Commands& cmds)
  *          UiClickEvent. In a full refactor, the UI plugin itself would be
  *          modified to send this event directly, removing the need for polling.
  */
-static void translate_input_to_ui_click_event(
-    r::ecs::Res<r::UiInputState> input_state,
-    r::ecs::EventWriter<UiClickEvent> click_writer)
-{
-    if (input_state.ptr->last_clicked != r::ecs::NULL_ENTITY) {
-        click_writer.send({input_state.ptr->last_clicked});
-    }
-}
+// static void translate_input_to_ui_click_event(
+//     r::ecs::Res<r::UiInputState> input_state,
+//     r::ecs::EventWriter<UiClickEvent> click_writer)
+// {
+//     if (input_state.ptr->last_clicked != r::ecs::NULL_ENTITY) {
+//         click_writer.send({input_state.ptr->last_clicked});
+//     }
+// }
 
-static void menu_button_handler(r::ecs::EventReader<UiClickEvent> click_reader, r::ecs::Query<r::ecs::Ref<MenuButton>> buttons,
+static void menu_button_handler(r::ecs::EventReader<r::UiClick> click_reader, r::ecs::Query<r::ecs::Ref<MenuButton>> buttons,
                                 r::ecs::ResMut<r::NextState<GameState>> next_state)
 {
     for (const auto &click : click_reader) {
@@ -221,6 +222,20 @@ static void game_over_system(r::ecs::Res<r::UserInput> user_input, r::ecs::ResMu
     }
 }
 
+static void camera_follow_player_system(
+    r::ecs::ResMut<r::Camera3d> camera,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::With<Player>> player_query)
+{
+    if (player_query.size() == 0) {
+        return;
+    }
+
+    auto [player_transform, _] = *player_query.begin();
+
+    camera.ptr->position.x = player_transform.ptr->position.x;
+    camera.ptr->target.x = player_transform.ptr->position.x;
+}
+
 void MenuPlugin::build(r::Application& app)
 {
     app
@@ -232,16 +247,15 @@ void MenuPlugin::build(r::Application& app)
 
         /* Add our new bridge system to run every frame in the MainMenu state.
          * It must run AFTER the UI plugin detects the click and BEFORE it clears the state. */
-        .add_systems<translate_input_to_ui_click_event>(r::Schedule::UPDATE)
-            .run_if<r::run_conditions::in_state<GameState::MainMenu>>()
-            .after<r::ui::pointer_system>() /* THIS IS THE FIX */
-            .before<r::ui::clear_click_state_system>()
+        // .add_systems<translate_input_to_ui_click_event>(r::Schedule::UPDATE)
+        //     .run_if<r::run_conditions::in_state<GameState::MainMenu>>()
+        //     .after<r::ui::pointer_system>() /* THIS IS THE FIX */
+        //     .before<r::ui::clear_click_state_system>()
 
         /* The handler now only runs efficiently when a click event is fired,
          * and we ensure it runs after the event is potentially created. */
         .add_systems<menu_button_handler>(r::Schedule::UPDATE)
-            .run_if<r::run_conditions::on_event<UiClickEvent>>()
-            .after<translate_input_to_ui_click_event>()
+            .run_if<r::run_conditions::on_event<r::UiClick>>()
 
         .add_systems<cleanup_menu>(r::OnExit{GameState::MainMenu})
 
@@ -249,6 +263,8 @@ void MenuPlugin::build(r::Application& app)
         .add_systems<show_game_over_ui>(r::OnEnter{GameState::GameOver})
         .add_systems<cleanup_game_over_ui>(r::OnExit{GameState::GameOver})
         .add_systems<game_over_system>(r::Schedule::UPDATE)
-        .run_if<r::run_conditions::in_state<GameState::GameOver>>();
+        .run_if<r::run_conditions::in_state<GameState::GameOver>>()
+        .add_systems<camera_follow_player_system>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::MainMenu>>();
 }
 // clang-format on
