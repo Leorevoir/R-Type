@@ -1,8 +1,8 @@
 #include "R-Engine/Components/Transform3d.hpp"
 #include "R-Engine/Maths/Maths.hpp"
-#include <plugins/map.hpp>
 #include <components.hpp>
 #include <events.hpp>
+#include <plugins/map.hpp>
 #include <state.hpp>
 
 #include <R-Engine/Application.hpp>
@@ -16,7 +16,7 @@
 #include <cmath>
 #include <cstdlib>
 
-static void spawn_scenery_system(r::ecs::Commands& commands, r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::Camera3d> camera)
+static void spawn_scenery_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::Camera3d> camera)
 {
     ::Model building_model = r::Mesh3d::Glb("assets/models/BlackBuilding.glb");
     if (building_model.meshCount == 0) {
@@ -49,19 +49,11 @@ static void spawn_scenery_system(r::ecs::Commands& commands, r::ecs::ResMut<r::M
             const float Y_VARIATION = 3.0f;
             float random_y = MIN_BUILDING_Y - Y_VARIATION * (static_cast<float>(rand()) / static_cast<float>(RAND_MAX));
 
-            commands.spawn(
-                BlackBuilding{},
-                ScrollingScenery{},
-                r::Transform3d{
-                    .position = {current_x, random_y, -10.0f},
-                    .scale = {2.0f, 2.0f, 2.0f}
-                },
-                r::Mesh3d{
-                    .id = building_handle,
+            commands.spawn(BlackBuilding{}, ScrollingScenery{},
+                r::Transform3d{.position = {current_x, random_y, -10.0f}, .scale = {2.0f, 2.0f, 2.0f}},
+                r::Mesh3d{.id = building_handle,
                     .color = r::Color{255, 255, 255, 255},
-                    .rotation_offset = {0.0f, static_cast<float>(M_PI) / 2.0f, 0.0f}
-                }
-            );
+                    .rotation_offset = {0.0f, static_cast<float>(M_PI) / 2.0f, 0.0f}});
             buildings_in_a_row++;
         } else {
             gap_size--;
@@ -74,8 +66,7 @@ static void spawn_scenery_system(r::ecs::Commands& commands, r::ecs::ResMut<r::M
     }
 }
 
-
-static void spawn_background_system(r::ecs::Commands& commands, r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::Camera3d> camera)
+static void spawn_background_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::Camera3d> camera)
 {
     const float BACKGROUND_Z_DEPTH = -20.0f;
 
@@ -91,27 +82,21 @@ static void spawn_background_system(r::ecs::Commands& commands, r::ecs::ResMut<r
     }
 
     r::MeshHandle background_mesh_handle = meshes.ptr->add(background_mesh_data, "assets/textures/background.png");
-    
+
     if (background_mesh_handle == r::MeshInvalidHandle) {
         r::Logger::error("Impossible to load texture : assets/textures/back2.png");
         return;
     }
 
-    commands.spawn(
-        Background{},
-        r::Transform3d{ 
-            .position = {0.0f, 0.0f, BACKGROUND_Z_DEPTH},
-            .rotation = {r::R_PI / 2.0f, 0.0f, 0.0f}
-        },
-        r::Mesh3d{ .id = background_mesh_handle, .color = r::Color{255, 255, 255, 255} }
-    );
+    commands.spawn(Background{}, r::Transform3d{.position = {0.0f, 0.0f, BACKGROUND_Z_DEPTH}, .rotation = {r::R_PI / 2.0f, 0.0f, 0.0f}},
+        r::Mesh3d{.id = background_mesh_handle, .color = r::Color{255, 255, 255, 255}});
 }
 
-static void follow_camera_background_system(
-    r::ecs::Res<r::Camera3d> camera,
+static void follow_camera_background_system(r::ecs::Res<r::Camera3d> camera,
     r::ecs::Query<r::ecs::Mut<r::Transform3d>, r::ecs::Ref<Background>> query)
 {
-    if (query.size() == 0) return;
+    if (query.size() == 0)
+        return;
 
     for (auto [transform, background] : query) {
         transform.ptr->position.x = camera.ptr->position.x;
@@ -119,42 +104,15 @@ static void follow_camera_background_system(
     }
 }
 
-// static void scroll_background_system(
-//     r::ecs::Res<r::core::FrameTime> time,
-//     r::ecs::Query<r::ecs::Mut<r::Transform3d>, r::ecs::Ref<Background>> query)
-// {
-//     if (query.size() < 2)
-//         return;
-
-//     const float bg_width = 20.0f * (static_cast<float>(GetScreenWidth()) / static_cast<float>(GetScreenHeight()));
-
-//     for (auto [transform, background] : query) {
-//         transform.ptr->position.x -= background.ptr->scroll_speed * time.ptr->delta_time;
-
-//         if (transform.ptr->position.x <= -bg_width) {
-//             transform.ptr->position.x += 2.0f * bg_width;
-//         }
-//     }
-// }
-
-
-static void scroll_scenery_system(
-    r::ecs::Res<r::core::FrameTime> time,
-    r::ecs::Res<r::Camera3d> camera,
+static void scroll_scenery_system(r::ecs::Res<r::core::FrameTime> time, r::ecs::Res<r::Camera3d> camera,
     r::ecs::Query<r::ecs::Mut<r::Transform3d>, r::ecs::Ref<ScrollingScenery>> query)
 {
-    if (query.size() == 0) return;
+    if (query.size() == 0)
+        return;
 
     const float distance_camera = camera.ptr->position.z;
     const float view_height = 2.0f * distance_camera * std::tanf(camera.ptr->fovy * (r::R_PI / 180.0f) / 2.0f);
     const float view_width = view_height * (static_cast<float>(1880) / static_cast<float>(720));
-    
-    //const float building_width = 3.0f;
-    //const float gap = 1.5f;
-    //const float step_width = building_width + gap;
-
-    //const int num_steps_needed = static_cast<int>(std::ceil((view_width + building_width) / step_width)) + 1;
-    //const float total_scrolling_width = static_cast<float>(num_steps_needed) * step_width;
 
     const float SCROLL_BUFFER_FACTOR = 1.5f;
     const float scroll_area_width = view_width * SCROLL_BUFFER_FACTOR;
@@ -173,8 +131,7 @@ static void scroll_scenery_system(
     }
 }
 
-static void cleanup_map_system(r::ecs::Commands& commands, 
-    r::ecs::Query<r::ecs::With<Background>> background_query,
+static void cleanup_map_system(r::ecs::Commands &commands, r::ecs::Query<r::ecs::With<Background>> background_query,
     r::ecs::Query<r::ecs::With<ScrollingScenery>> scenery_query)
 {
     for (auto it = background_query.begin(); it != background_query.end(); ++it) {
@@ -185,15 +142,15 @@ static void cleanup_map_system(r::ecs::Commands& commands,
     }
 }
 
-void MapPlugin::build(r::Application& app)
+void MapPlugin::build(r::Application &app)
 {
     app.add_systems<spawn_scenery_system>(r::OnEnter{GameState::MainMenu})
         .add_systems<spawn_background_system>(r::OnEnter{GameState::MainMenu})
 
         .add_systems<follow_camera_background_system, scroll_scenery_system>(r::Schedule::UPDATE)
-            .run_if<r::run_conditions::in_state<GameState::MainMenu>>()
-            .run_or<r::run_conditions::in_state<GameState::EnemiesBattle>>()
-            .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
+        .run_if<r::run_conditions::in_state<GameState::MainMenu>>()
+        .run_or<r::run_conditions::in_state<GameState::EnemiesBattle>>()
+        .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
 
         .add_systems<cleanup_map_system>(r::OnExit{GameState::MainMenu})
 
