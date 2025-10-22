@@ -28,19 +28,6 @@ static constexpr float BOSS_UPPER_BOUND = 4.0f;
 static constexpr float BOSS_LOWER_BOUND = -15.0f;
 
 /* ================================================================================= */
-/* Run Condition */
-/* ================================================================================= */
-
-static bool is_in_gameplay_state(r::ecs::Res<r::State<GameState>> state)
-{
-    if (!state.ptr) {
-        return false;
-    }
-    auto current_state = state.ptr->current();
-    return current_state == GameState::EnemiesBattle || current_state == GameState::BossBattle;
-}
-
-/* ================================================================================= */
 /* Gameplay Systems */
 /* ================================================================================= */
 
@@ -99,7 +86,7 @@ static void boss_spawn_system(r::ecs::Commands& commands, r::ecs::ResMut<r::Mesh
             commands.spawn(
                 Boss{},
                 BossShootTimer{},
-                Health{1000, 1000},
+                Health{500, 500},
                 r::Transform3d{
                     .position = {12.0f, -10.0f, 0.0f},
                     .scale = {0.5f, 0.5f, 0.5f}
@@ -116,17 +103,21 @@ static void boss_spawn_system(r::ecs::Commands& commands, r::ecs::ResMut<r::Mesh
     }
 }
 
-static void boss_ai_system(
-    r::ecs::Commands& commands, r::ecs::Res<r::core::FrameTime> time, r::ecs::Res<BossBulletAssets> bullet_assets,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Mut<Velocity>, r::ecs::Mut<BossShootTimer>, r::ecs::Ref<Health>, r::ecs::With<Boss>> query)
+static void boss_movement_system(r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Mut<Velocity>, r::ecs::With<Boss>> query)
 {
-    for (auto [transform, velocity, timer, health, _] : query) {
+    for (auto [transform, velocity, _] : query) {
         if (transform.ptr->position.y > BOSS_UPPER_BOUND && velocity.ptr->value.y > 0) {
             velocity.ptr->value.y *= -1;
         } else if (transform.ptr->position.y < BOSS_LOWER_BOUND && velocity.ptr->value.y < 0) {
             velocity.ptr->value.y *= -1;
         }
+    }
+}
 
+static void boss_shooting_system( r::ecs::Commands& commands, r::ecs::Res<r::core::FrameTime> time, r::ecs::Res<BossBulletAssets> bullet_assets,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Mut<BossShootTimer>, r::ecs::Ref<Health>, r::ecs::With<Boss>> query)
+{
+    for (auto [transform, timer, health, _] : query) {
         timer.ptr->time_left -= time.ptr->delta_time;
 
         if (timer.ptr->time_left <= 0.0f) {
@@ -210,13 +201,13 @@ void GameplayPlugin::build(r::Application& app)
         .add_systems<setup_missile_assets_system>(r::OnEnter{GameState::EnemiesBattle})
 
         .add_systems<setup_boss_fight_system>(r::Schedule::UPDATE)
-        .run_if<is_in_gameplay_state>()
+        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
 
         .add_systems<enemy_spawner_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
 
         .add_systems<boss_spawn_system>(r::OnEnter(GameState::BossBattle))
-        .add_systems<boss_ai_system>(r::Schedule::UPDATE)
+        .add_systems<boss_movement_system, boss_shooting_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::BossBattle>>();
 }
 // clang-format on

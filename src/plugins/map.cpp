@@ -1,5 +1,5 @@
 #include "R-Engine/Components/Transform3d.hpp"
-#include "R-Engine/Maths/Quaternion.hpp"
+#include "R-Engine/Maths/Maths.hpp"
 #include <plugins/map.hpp>
 #include <components.hpp>
 #include <events.hpp>
@@ -185,23 +185,15 @@ static void cleanup_map_system(r::ecs::Commands& commands,
     }
 }
 
-static bool is_in_scrolling_state(r::ecs::Res<r::State<GameState>> state)
-{
-    if (!state.ptr)
-        return false;
-    auto current = state.ptr->current();
-    return current == GameState::MainMenu || current == GameState::EnemiesBattle || current == GameState::BossBattle;
-}
-
 void MapPlugin::build(r::Application& app)
 {
     app.add_systems<spawn_scenery_system>(r::OnEnter{GameState::MainMenu})
         .add_systems<spawn_background_system>(r::OnEnter{GameState::MainMenu})
 
-        .add_systems<follow_camera_background_system>(r::Schedule::UPDATE)
-            .run_if<is_in_scrolling_state>()
-        .add_systems<scroll_scenery_system>(r::Schedule::UPDATE)
-           .run_if<is_in_scrolling_state>()
+        .add_systems<follow_camera_background_system, scroll_scenery_system>(r::Schedule::UPDATE)
+            .run_if<r::run_conditions::in_state<GameState::MainMenu>>()
+            .run_or<r::run_conditions::in_state<GameState::EnemiesBattle>>()
+            .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
 
         .add_systems<cleanup_map_system>(r::OnExit{GameState::MainMenu})
 

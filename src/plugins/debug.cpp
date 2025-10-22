@@ -6,18 +6,7 @@
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Backend.hpp>
 #include <R-Engine/ECS/Query.hpp>
-
-/* ================================================================================= */
-/* Run Condition */
-/* ================================================================================= */
-
-static bool is_in_gameplay_state(r::ecs::Res<r::State<GameState>> state)
-{
-    if (!state.ptr)
-        return false;
-    auto current_state = state.ptr->current();
-    return current_state == GameState::EnemiesBattle || current_state == GameState::BossBattle;
-}
+#include <R-Engine/ECS/RunConditions.hpp>
 
 /* ================================================================================= */
 /* Debug Systems */
@@ -39,5 +28,7 @@ static void debug_draw_colliders_system(r::ecs::Query<r::ecs::Ref<r::GlobalTrans
 
 void DebugPlugin::build(r::Application &app)
 {
-    app.add_systems<debug_draw_colliders_system>(r::Schedule::RENDER_3D).run_if<is_in_gameplay_state>();
+    app.add_systems<debug_draw_colliders_system>(r::Schedule::RENDER_3D)
+        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
+        .run_or<r::run_conditions::in_state<GameState::BossBattle>>();
 }

@@ -9,6 +9,7 @@
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/ECS/Command.hpp>
 #include <R-Engine/ECS/Query.hpp>
+#include <R-Engine/ECS/RunConditions.hpp>
 #include <R-Engine/Plugins/InputPlugin.hpp>
 #include <R-Engine/Plugins/MeshPlugin.hpp>
 
@@ -29,19 +30,6 @@ static constexpr float FORCE_BULLET_SPEED = 10.0f;
 static constexpr float FORCE_AUTONOMOUS_FOLLOW_STIFFNESS = 5.0f; /* How quickly it moves to the target position */
 static constexpr float FORCE_AUTONOMOUS_DAMPING = 0.95f; /* Reduces oscillation and slows it down over time */
 static constexpr float FORCE_TARGET_X_OFFSET = 4.0f; /* Horizontal distance from the screen center it hovers at */
-
-/* ================================================================================= */
-/* Run Condition */
-/* ================================================================================= */
-
-static bool is_in_gameplay_state(r::ecs::Res<r::State<GameState>> state)
-{
-    if (!state.ptr) {
-        return false;
-    }
-    auto current_state = state.ptr->current();
-    return current_state == GameState::EnemiesBattle || current_state == GameState::BossBattle;
-}
 
 /* ================================================================================= */
 /* Force Systems */
@@ -204,6 +192,7 @@ static void force_shooting_system(r::ecs::Commands &commands, r::ecs::Res<Player
 void ForcePlugin::build(r::Application &app)
 {
     app.add_systems<force_control_system, force_recall_system, force_autonomous_movement_system, force_shooting_system>(r::Schedule::UPDATE)
-        .run_if<is_in_gameplay_state>();
+        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
+        .run_or<r::run_conditions::in_state<GameState::BossBattle>>();
 }
 // clang-format on

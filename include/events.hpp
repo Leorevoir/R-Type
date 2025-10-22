@@ -28,11 +28,3 @@ struct BossDefeatedEvent {
 struct EntityDiedEvent {
         r::ecs::Entity entity;
 };
-
-/**
- * @brief Fired when a UI element is clicked.
- * @details This bridges the engine's custom UI input state to the standard event system.
- */
-// struct UiClickEvent {
-//         r::ecs::Entity entity;
-// };

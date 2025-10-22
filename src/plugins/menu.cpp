@@ -1,5 +1,4 @@
 #include <components.hpp>
-#include <events.hpp>
 #include <plugins/menu.hpp>
 #include <state.hpp>
 
@@ -13,6 +12,7 @@
 #include <R-Engine/Plugins/UiPlugin.hpp>
 #include <R-Engine/UI/Button.hpp>
 #include <R-Engine/UI/Components.hpp>
+#include <R-Engine/UI/Events.hpp>
 #include <R-Engine/UI/Image.hpp>
 #include "R-Engine/Components/Transform3d.hpp"
 #include <R-Engine/UI/InputState.hpp>
@@ -20,6 +20,38 @@
 #include <R-Engine/UI/Theme.hpp>
 
 // clang-format off
+
+/* ================================================================================= */
+/* Menu Systems :: Helpers */
+/* ================================================================================= */
+
+static void create_menu_title(r::ecs::ChildBuilder& parent)
+{
+    parent.spawn(
+        r::UiNode{},
+        r::Style{.height = 200.f, .width_pct = 100.f, .background = r::Color{0, 0, 0, 1}, .margin = 0.f, .padding = 0.f},
+        r::UiImage{.path = "assets/textures/r-type_title.png", .tint = r::Color{255, 255, 255, 255}, .keep_aspect = true},
+        r::ComputedLayout{},
+        r::Visibility::Visible
+    );
+}
+
+static void create_menu_button(r::ecs::ChildBuilder& parent, MenuButton::Action action, const std::string& text)
+{
+    parent.spawn(
+        r::UiNode{}, r::UiButton{}, MenuButton{action},
+        r::Style{
+            .width = 280.f,
+            .height = 45.f,
+            .direction = r::LayoutDirection::Column,
+            .justify = r::JustifyContent::Center,
+            .align = r::AlignItems::Center
+        },
+        r::UiText{.content = text, .font_size = 22, .font_path = {}},
+        r::ComputedLayout{},
+        r::Visibility::Visible
+    );
+}
 
 /* ================================================================================= */
 /* Menu Systems */
@@ -46,8 +78,7 @@ static void setup_ui_theme(r::ecs::ResMut<r::UiTheme> theme, r::ecs::ResMut<r::U
 
 static void build_main_menu(r::ecs::Commands& cmds)
 {
-    /* Root menu container */
-    auto menu_root = cmds.spawn(
+    cmds.spawn(
         MenuRoot{}, r::UiNode{},
         r::Style{
             .width_pct = 100.f,
@@ -62,79 +93,13 @@ static void build_main_menu(r::ecs::Commands& cmds)
         },
         r::ComputedLayout{},
         r::Visibility::Visible
-    );
-
-    menu_root.with_children([&](r::ecs::ChildBuilder& parent) {
-        /* R-Type Title Logo */
-        parent.spawn(
-            r::UiNode{},
-            r::Style{.height = 200.f, .width_pct = 100.f, .background = r::Color{0, 0, 0, 1}, .margin = 0.f, .padding = 0.f},
-            r::UiImage{.path = "assets/textures/r-type_title.png", .tint = r::Color{255, 255, 255, 255}, .keep_aspect = true},
-            r::ComputedLayout{},
-            r::Visibility::Visible
-        );
-
-        /* Play Button */
-        parent.spawn(
-            r::UiNode{}, r::UiButton{}, MenuButton{MenuButton::Action::Play},
-            r::Style{
-                .width = 280.f,
-                .height = 45.f,
-                .direction = r::LayoutDirection::Column,
-                .justify = r::JustifyContent::Center,
-                .align = r::AlignItems::Center
-            },
-            r::UiText{.content = std::string("Play"), .font_size = 22, .font_path = {}},
-            r::ComputedLayout{},
-            r::Visibility::Visible
-        );
-
-        /* Options Button */
-        parent.spawn(
-            r::UiNode{}, r::UiButton{}, MenuButton{MenuButton::Action::Options},
-            r::Style{
-                .width = 280.f,
-                .height = 45.f,
-                .direction = r::LayoutDirection::Column,
-                .justify = r::JustifyContent::Center,
-                .align = r::AlignItems::Center
-            },
-            r::UiText{.content = std::string("Options"), .font_size = 22, .font_path = {}},
-            r::ComputedLayout{},
-            r::Visibility::Visible
-        );
-
-        /* Quit Button */
-        parent.spawn(
-            r::UiNode{}, r::UiButton{}, MenuButton{MenuButton::Action::Quit},
-            r::Style{
-                .width = 280.f,
-                .height = 45.f,
-                .direction = r::LayoutDirection::Column,
-                .justify = r::JustifyContent::Center,
-                .align = r::AlignItems::Center
-            },
-            r::UiText{.content = std::string("Quit"), .font_size = 22, .font_path = {}},
-            r::ComputedLayout{},
-            r::Visibility::Visible
-        );
+    ).with_children([&](r::ecs::ChildBuilder& parent) {
+        create_menu_title(parent);
+        create_menu_button(parent, MenuButton::Action::Play, "Play");
+        create_menu_button(parent, MenuButton::Action::Options, "Options");
+        create_menu_button(parent, MenuButton::Action::Quit, "Quit");
     });
 }
-
-/**
- * @brief A temporary "bridge" system.
- * @details This system polls the old UiInputState resource and fires a standard
- *          UiClickEvent. In a full refactor, the UI plugin itself would be
- *          modified to send this event directly, removing the need for polling.
- */
-// static void translate_input_to_ui_click_event(
-//     r::ecs::Res<r::UiInputState> input_state,
-//     r::ecs::EventWriter<UiClickEvent> click_writer)
-// {
-//     if (input_state.ptr->last_clicked != r::ecs::NULL_ENTITY) {
-//         click_writer.send({input_state.ptr->last_clicked});
-//     }
-// }
 
 static void menu_button_handler(r::ecs::EventReader<r::UiClick> click_reader, r::ecs::Query<r::ecs::Ref<MenuButton>> buttons,
                                 r::ecs::ResMut<r::NextState<GameState>> next_state)
@@ -244,13 +209,6 @@ void MenuPlugin::build(r::Application& app)
 
         /* Main Menu State */
         .add_systems<build_main_menu>(r::OnEnter{GameState::MainMenu})
-
-        /* Add our new bridge system to run every frame in the MainMenu state.
-         * It must run AFTER the UI plugin detects the click and BEFORE it clears the state. */
-        // .add_systems<translate_input_to_ui_click_event>(r::Schedule::UPDATE)
-        //     .run_if<r::run_conditions::in_state<GameState::MainMenu>>()
-        //     .after<r::ui::pointer_system>() /* THIS IS THE FIX */
-        //     .before<r::ui::clear_click_state_system>()
 
         /* The handler now only runs efficiently when a click event is fired,
          * and we ensure it runs after the event is potentially created. */
