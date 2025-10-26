@@ -16,6 +16,8 @@ struct MenuRoot {
 };
 struct GameOverRoot {
 };
+struct YouWinRoot {
+};
 
 /* ================================================================================= */
 /* Game Components */
@@ -63,13 +65,25 @@ struct Health {
         int max;
 };
 
-struct BlackBuilding {        
+struct BlackBuilding {
 };
 
 struct Background {
-    float scroll_speed = 2.0f;
+        float scroll_speed = 2.0f;
 };
 
 struct ScrollingScenery {
-    float scroll_speed = 4.0f;
+        float scroll_speed = 4.0f;
+};
+
+/* ================================================================================= */
+/* Boss Behavior Components */
+/* These are "tag" components used to assign specific behaviors to a boss entity. */
+/* ================================================================================= */
+
+struct VerticalPatrolBoss {
+};
+struct HomingAttackBoss {
+};
+struct TurretBoss {
 };

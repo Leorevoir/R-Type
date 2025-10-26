@@ -187,6 +187,45 @@ static void game_over_system(r::ecs::Res<r::UserInput> user_input, r::ecs::ResMu
     }
 }
 
+
+static void show_you_win_ui(r::ecs::Commands& cmds)
+{
+    cmds.spawn(
+        YouWinRoot{}, r::UiNode{},
+        r::Style{
+            .width_pct = 100.f,
+            .height_pct = 100.f,
+            .background = r::Color{0, 20, 50, 180}, /* Semi-transparent blue background */
+            .direction = r::LayoutDirection::Column,
+            .justify = r::JustifyContent::Center,
+            .align = r::AlignItems::Center,
+            .gap = 20.f
+        },
+        r::ComputedLayout{},
+        r::Visibility::Visible
+    )
+    .with_children([&](r::ecs::ChildBuilder& parent) {
+        parent.spawn(r::UiNode{}, r::UiText{.content = "YOU WIN!", .font_size = 80, .color = {98, 221, 255, 255}, .font_path = {}},
+                     r::Style{.height = 90.f}, r::ComputedLayout{}, r::Visibility::Visible);
+        parent.spawn(r::UiNode{}, r::UiText{.content = "Press ENTER to return to Main Menu", .font_size = 30, .color = {200, 200, 200, 255}, .font_path = {}},
+                     r::Style{.height = 40.f}, r::ComputedLayout{}, r::Visibility::Visible);
+    });
+}
+
+static void cleanup_you_win_ui(r::ecs::Commands& cmds, r::ecs::Query<r::ecs::With<YouWinRoot>> query)
+{
+    for (auto it = query.begin(); it != query.end(); ++it) {
+        cmds.despawn(it.entity());
+    }
+}
+
+static void you_win_system(r::ecs::Res<r::UserInput> user_input, r::ecs::ResMut<r::NextState<GameState>> next_state)
+{
+    if (user_input.ptr->isKeyPressed(KEY_ENTER)) {
+        next_state.ptr->set(GameState::MainMenu);
+    }
+}
+
 static void camera_follow_player_system(
     r::ecs::ResMut<r::Camera3d> camera,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::With<Player>> player_query)
@@ -209,12 +248,8 @@ void MenuPlugin::build(r::Application& app)
 
         /* Main Menu State */
         .add_systems<build_main_menu>(r::OnEnter{GameState::MainMenu})
-
-        /* The handler now only runs efficiently when a click event is fired,
-         * and we ensure it runs after the event is potentially created. */
         .add_systems<menu_button_handler>(r::Schedule::UPDATE)
             .run_if<r::run_conditions::on_event<r::UiClick>>()
-
         .add_systems<cleanup_menu>(r::OnExit{GameState::MainMenu})
 
         /* GameOver State */
@@ -222,6 +257,13 @@ void MenuPlugin::build(r::Application& app)
         .add_systems<cleanup_game_over_ui>(r::OnExit{GameState::GameOver})
         .add_systems<game_over_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::GameOver>>()
+
+        /* YouWin State (New) */
+        .add_systems<show_you_win_ui>(r::OnEnter{GameState::YouWin})
+        .add_systems<cleanup_you_win_ui>(r::OnExit{GameState::YouWin})
+        .add_systems<you_win_system>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::YouWin>>()
+
         .add_systems<camera_follow_player_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::MainMenu>>();
 }

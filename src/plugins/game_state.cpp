@@ -1,10 +1,12 @@
+#include "plugins/game_state.hpp"
+#include "resources.hpp"
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/ECS/Event.hpp>
 #include <R-Engine/ECS/RunConditions.hpp>
 #include <events.hpp>
-#include <plugins/game_state.hpp>
 #include <state.hpp>
+#include <string>
 
 static void handle_player_death_system(r::ecs::ResMut<r::NextState<GameState>> next_state)
 {
@@ -18,10 +20,20 @@ static void handle_boss_spawn_trigger_system(r::ecs::ResMut<r::NextState<GameSta
     next_state.ptr->set(GameState::BossBattle);
 }
 
-static void handle_boss_defeated_system()
+static void handle_boss_defeated_system(r::ecs::ResMut<r::NextState<GameState>> next_state, r::ecs::ResMut<CurrentLevel> current_level,
+    r::ecs::Res<GameLevels> game_levels)
 {
-    /* Later, we'll of course transition to a "You Win" screen or the next level */
-    r::Logger::info("BossDefeatedEvent received! Congratulations!");
+    r::Logger::info("BossDefeatedEvent received! Level " + std::to_string(current_level.ptr->index + 1) + " complete!");
+
+    current_level.ptr->index++;
+
+    if (static_cast<size_t>(current_level.ptr->index) < game_levels.ptr->levels.size()) {
+        r::Logger::info("Proceeding to Level " + std::to_string(current_level.ptr->index + 1));
+        next_state.ptr->set(GameState::EnemiesBattle);
+    } else {
+        r::Logger::info("All levels completed! Congratulations!");
+        next_state.ptr->set(GameState::YouWin);
+    }
 }
 
 void GameStatePlugin::build(r::Application &app)

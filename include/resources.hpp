@@ -1,12 +1,48 @@
 #pragma once
+
 #include <R-Engine/Plugins/MeshPlugin.hpp>
+#include <string>
+#include <vector>
 
 /* ================================================================================= */
-/* Constants & Configuration */
+/* Level Configuration */
 /* ================================================================================= */
 
-static constexpr float ENEMY_SPAWN_INTERVAL = 0.75f; /* in seconds */
-static constexpr float BOSS_SPAWN_TIME = 20.0f;
+struct EnemyData {
+        std::string model_path;
+        int health;
+        float speed;
+};
+
+enum class BossBehaviorType {
+    VerticalPatrol,
+    HomingAttack,
+    Turret,
+};
+
+struct BossData {
+        std::string model_path;
+        int max_health;
+        BossBehaviorType behavior;
+};
+
+struct LevelData {
+        int id;
+        float enemy_spawn_interval;
+        float boss_spawn_time;
+        std::string background_texture_path;
+        std::string scenery_model_path;
+        std::vector<EnemyData> enemy_types;
+        BossData boss_data;
+};
+
+struct GameLevels {
+        std::vector<LevelData> levels;
+};
+
+struct CurrentLevel {
+        int index = 0;
+};
 
 /* ================================================================================= */
 /* Resources */
@@ -14,11 +50,11 @@ static constexpr float BOSS_SPAWN_TIME = 20.0f;
 /* ================================================================================= */
 
 struct EnemySpawnTimer {
-        float time_left = ENEMY_SPAWN_INTERVAL;
+        float time_left = 1.0f; /* Default value, will be overwritten by level data */
 };
 
 struct BossSpawnTimer {
-        float time_left = BOSS_SPAWN_TIME;
+        float time_left = 4.0f; /* Default value, will be overwritten by level data */
         bool spawned = false;
 };
 
