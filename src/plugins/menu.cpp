@@ -365,6 +365,7 @@ void MenuPlugin::build(r::Application &app)
 
         /* In-Game HUD */
         .add_systems<build_game_hud>(r::OnEnter{GameState::EnemiesBattle})
+        .add_systems<build_game_hud>(r::OnEnter{GameState::BossBattle})
         .add_systems<update_game_hud>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
         .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
