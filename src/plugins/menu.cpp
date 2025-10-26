@@ -364,6 +364,8 @@ void MenuPlugin::build(r::Application &app)
         .add_systems<cleanup_menu>(r::OnExit{GameState::MainMenu})
 
         /* In-Game HUD */
+        .add_systems<cleanup_game_hud>(r::OnEnter{GameState::EnemiesBattle})
+        .add_systems<cleanup_game_hud>(r::OnEnter{GameState::BossBattle})
         .add_systems<build_game_hud>(r::OnEnter{GameState::EnemiesBattle})
         .add_systems<build_game_hud>(r::OnEnter{GameState::BossBattle})
         .add_systems<update_game_hud>(r::Schedule::UPDATE)
