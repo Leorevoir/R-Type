@@ -1,13 +1,8 @@
-#include <components.hpp>
-#include <plugins/menu.hpp>
-#include <resources.hpp>
-#include <state.hpp>
-
+#include "plugins/menu.hpp"
 #include "R-Engine/Components/Transform3d.hpp"
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/ECS/Command.hpp>
-#include <R-Engine/ECS/Event.hpp>
 #include <R-Engine/ECS/Query.hpp>
 #include <R-Engine/ECS/RunConditions.hpp>
 #include <R-Engine/Plugins/Ui/Systems.hpp>
@@ -19,6 +14,11 @@
 #include <R-Engine/UI/InputState.hpp>
 #include <R-Engine/UI/Text.hpp>
 #include <R-Engine/UI/Theme.hpp>
+
+#include <components/player.hpp>
+#include <components/ui.hpp>
+#include <resources/game_state.hpp>
+#include <state/game_state.hpp>
 
 /* ================================================================================= */
 /* Menu Systems :: Helpers */

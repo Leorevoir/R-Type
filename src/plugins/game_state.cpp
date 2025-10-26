@@ -1,13 +1,15 @@
 #include "plugins/game_state.hpp"
-#include "resources.hpp"
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/ECS/Event.hpp>
 #include <R-Engine/ECS/RunConditions.hpp>
-#include <components.hpp>
-#include <events.hpp>
-#include <state.hpp>
 #include <string>
+
+#include <components/player.hpp>
+#include <events/game_events.hpp>
+#include <resources/game_state.hpp>
+#include <resources/level.hpp>
+#include <state/game_state.hpp>
 
 static void handle_player_death_system(r::ecs::ResMut<r::NextState<GameState>> next_state, r::ecs::ResMut<PlayerLives> lives,
     r::ecs::Commands &commands, r::ecs::Query<r::ecs::With<Player>> player_query)

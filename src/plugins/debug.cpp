@@ -1,12 +1,12 @@
-#include <components.hpp>
-#include <plugins/debug.hpp>
-#include <state.hpp>
-
+#include "plugins/debug.hpp"
 #include "R-Engine/Components/Transform3d.hpp"
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Backend.hpp>
 #include <R-Engine/ECS/Query.hpp>
 #include <R-Engine/ECS/RunConditions.hpp>
+
+#include <components/common.hpp>
+#include <state/game_state.hpp>
 
 /* ================================================================================= */
 /* Debug Systems */

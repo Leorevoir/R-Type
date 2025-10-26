@@ -1,14 +1,16 @@
-#include "plugins/map.hpp"
-#include <events.hpp>
+#include "plugins/enemy.hpp"
 #include <plugins/combat.hpp>
 #include <plugins/debug.hpp>
 #include <plugins/force.hpp>
 #include <plugins/game_state.hpp>
 #include <plugins/gameplay.hpp>
+#include <plugins/map.hpp>
 #include <plugins/menu.hpp>
 #include <plugins/player.hpp>
-#include <resources.hpp>
-#include <state.hpp>
+
+#include <events/game_events.hpp>
+#include <resources/level.hpp>
+#include <state/game_state.hpp>
 
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Backend.hpp>
@@ -153,12 +155,13 @@ int main()
         /* Add all our custom game plugins */
         .add_plugins(GameStatePlugin{})
         .add_plugins(MenuPlugin{})
+        .add_plugins(MapPlugin{})
         .add_plugins(PlayerPlugin{})
         .add_plugins(ForcePlugin{})
+        .add_plugins(EnemyPlugin{})
         .add_plugins(GameplayPlugin{})
         .add_plugins(CombatPlugin{})
         //.add_plugins(DebugPlugin{})
-        .add_plugins(MapPlugin{})
 
         /* Add the remaining core setup */
         .add_systems<setup_core_game_system>(r::Schedule::STARTUP)
