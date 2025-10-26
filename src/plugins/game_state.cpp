@@ -56,11 +56,35 @@ static void reset_player_lives_system(r::ecs::ResMut<PlayerLives> lives)
     lives.ptr->count = 3;
 }
 
+static void reset_player_score_system(r::ecs::ResMut<PlayerScore> score)
+{
+    score.ptr->value = 0;
+    score.ptr->next_life_threshold = 20000;
+}
+
+static void extra_life_system(r::ecs::ResMut<PlayerScore> score, r::ecs::ResMut<PlayerLives> lives)
+{
+    if (score.ptr->value >= score.ptr->next_life_threshold) {
+        lives.ptr->count++;
+        score.ptr->next_life_threshold += 50000; /* Next life at a higher score */
+        r::Logger::info("Extra life awarded! Lives: " + std::to_string(lives.ptr->count)
+            + " Next life at: " + std::to_string(score.ptr->next_life_threshold));
+    }
+}
+
 void GameStatePlugin::build(r::Application &app)
 {
     app.init_state(GameState::MainMenu)
         .insert_resource(PlayerLives{})
-        .add_systems<reset_player_lives_system>(r::OnEnter{GameState::EnemiesBattle})
+        .insert_resource(PlayerScore{})
+
+        .add_systems<reset_player_lives_system>(r::OnTransition{GameState::MainMenu, GameState::EnemiesBattle})
+        .add_systems<reset_player_lives_system>(r::OnTransition{GameState::GameOver, GameState::EnemiesBattle})
+        .add_systems<reset_player_lives_system>(r::OnTransition{GameState::YouWin, GameState::EnemiesBattle})
+        .add_systems<reset_player_score_system>(r::OnTransition{GameState::MainMenu, GameState::EnemiesBattle})
+        .add_systems<reset_player_score_system>(r::OnTransition{GameState::GameOver, GameState::EnemiesBattle})
+        .add_systems<reset_player_score_system>(r::OnTransition{GameState::YouWin, GameState::EnemiesBattle})
+
         .add_systems<handle_player_death_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::on_event<PlayerDiedEvent>>()
 
@@ -68,5 +92,9 @@ void GameStatePlugin::build(r::Application &app)
         .run_if<r::run_conditions::on_event<BossTimeReachedEvent>>()
 
         .add_systems<handle_boss_defeated_system>(r::Schedule::UPDATE)
-        .run_if<r::run_conditions::on_event<BossDefeatedEvent>>();
+        .run_if<r::run_conditions::on_event<BossDefeatedEvent>>()
+
+        .add_systems<extra_life_system>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
+        .run_or<r::run_conditions::in_state<GameState::BossBattle>>();
 }

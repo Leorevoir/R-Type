@@ -19,6 +19,7 @@ struct EnemyData {
         int health;
         float speed;
         EnemyBehaviorType behavior;
+        int score_value;
 };
 
 enum class BossBehaviorType {
@@ -31,6 +32,7 @@ struct BossData {
         std::string model_path;
         int max_health;
         BossBehaviorType behavior;
+        int score_value;
 };
 
 struct LevelData {
@@ -82,4 +84,9 @@ struct BossBulletAssets {
 
 struct PlayerLives {
         int count = 3;
+};
+
+struct PlayerScore {
+        int value = 0;
+        int next_life_threshold = 20000;
 };

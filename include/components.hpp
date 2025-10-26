@@ -68,6 +68,10 @@ struct Health {
         int max;
 };
 
+struct ScoreValue {
+        int points = 0;
+};
+
 struct BlackBuilding {
 };
 

@@ -31,6 +31,21 @@ static constexpr float BOSS_LOWER_BOUND = -15.0f;
 /* Gameplay Systems */
 /* ================================================================================= */
 
+static void scoring_system(r::ecs::EventReader<EntityDiedEvent> reader, r::ecs::Query<r::ecs::Ref<ScoreValue>> query,
+    r::ecs::ResMut<PlayerScore> score)
+{
+    for (const auto &event : reader) {
+        for (auto it = query.begin(); it != query.end(); ++it) {
+            if (it.entity() == event.entity) {
+                auto [score_value] = *it;
+                score.ptr->value += score_value.ptr->points;
+                r::Logger::info("Score: " + std::to_string(score.ptr->value));
+                break;
+            }
+        }
+    }
+}
+
 static void setup_level_timers_system(r::ecs::Res<CurrentLevel> current_level, r::ecs::Res<GameLevels> game_levels,
     r::ecs::ResMut<EnemySpawnTimer> enemy_timer, r::ecs::ResMut<BossSpawnTimer> boss_timer)
 {
@@ -62,20 +77,21 @@ static void enemy_spawner_system(r::ecs::Commands &commands, r::ecs::ResMut<Enem
 
         r::MeshHandle enemy_mesh_handle = meshes.ptr->add(enemy_to_spawn.model_path);
         if (enemy_mesh_handle != r::MeshInvalidHandle) {
-            auto enemy_cmds = commands.spawn(Enemy{}, Health{enemy_to_spawn.health, enemy_to_spawn.health},
-                r::Transform3d{
-                    .position = {15.0f, random_y, 0.0f},
-                    .scale = {1.0f, 1.0f, 1.0f},
-                },
-                Velocity{
-                    {-enemy_to_spawn.speed, 0.0f, 0.0f},
-                },
-                Collider{0.5f},
-                r::Mesh3d{
-                    .id = enemy_mesh_handle,
-                    .color = r::Color{255, 255, 255, 255},
-                    .rotation_offset = {0.0f, -(static_cast<float>(M_PI) / 2.0f), 0.0f},
-                });
+            auto enemy_cmds =
+                commands.spawn(Enemy{}, Health{enemy_to_spawn.health, enemy_to_spawn.health}, ScoreValue{enemy_to_spawn.score_value},
+                    r::Transform3d{
+                        .position = {15.0f, random_y, 0.0f},
+                        .scale = {1.0f, 1.0f, 1.0f},
+                    },
+                    Velocity{
+                        {-enemy_to_spawn.speed, 0.0f, 0.0f},
+                    },
+                    Collider{0.5f},
+                    r::Mesh3d{
+                        .id = enemy_mesh_handle,
+                        .color = r::Color{255, 255, 255, 255},
+                        .rotation_offset = {0.0f, -(static_cast<float>(M_PI) / 2.0f), 0.0f},
+                    });
 
             /* Add the correct behavior component based on level data */
             switch (enemy_to_spawn.behavior) {
@@ -122,7 +138,7 @@ static void boss_spawn_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Mesh
 
     r::MeshHandle boss_mesh_handle = meshes.ptr->add(boss_data.model_path);
     if (boss_mesh_handle != r::MeshInvalidHandle) {
-        auto boss_cmds = commands.spawn(Boss{}, BossShootTimer{},
+        auto boss_cmds = commands.spawn(Boss{}, BossShootTimer{}, ScoreValue{boss_data.score_value},
             Health{
                 boss_data.max_health,
                 boss_data.max_health,
@@ -265,24 +281,25 @@ static void boss_shooting_vertical_patrol_system(r::ecs::Commands &commands, r::
                     .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, -static_cast<float>(M_PI) / 2.0f},
                 });
             if (health.ptr->current <= health.ptr->max / 2) {
-                commands.spawn(EnemyBullet{},
-                    r::Transform3d{
-                        .position = transform.ptr->position + r::Vec3f{0.0f, 5.5f, 0.0f},
-                        .rotation = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f},
-                        .scale = {0.5f, 0.5f, 0.5f},
-                    },
-                    Velocity{
-                        {-BULLET_SPEED, 0.0f, 0.0f},
-                    },
-                    Collider{
-                        .radius = 0.8f,
-                    },
-                    r::Mesh3d{
-                        .id = bullet_assets.ptr->big_missile,
-                        .color = r::Color{255, 255, 255, 255},
-                        .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, -static_cast<float>(M_PI) / 2.0f},
-                    })
-                .insert(Unblockable{});
+                commands
+                    .spawn(EnemyBullet{},
+                        r::Transform3d{
+                            .position = transform.ptr->position + r::Vec3f{0.0f, 5.5f, 0.0f},
+                            .rotation = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, static_cast<float>(M_PI) / 2.0f},
+                            .scale = {0.5f, 0.5f, 0.5f},
+                        },
+                        Velocity{
+                            {-BULLET_SPEED, 0.0f, 0.0f},
+                        },
+                        Collider{
+                            .radius = 0.8f,
+                        },
+                        r::Mesh3d{
+                            .id = bullet_assets.ptr->big_missile,
+                            .color = r::Color{255, 255, 255, 255},
+                            .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, -static_cast<float>(M_PI) / 2.0f},
+                        })
+                    .insert(Unblockable{});
             }
         }
     }
@@ -339,6 +356,9 @@ void GameplayPlugin::build(r::Application &app)
 
         .add_systems<enemy_spawner_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
+
+        .add_systems<scoring_system>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::on_event<EntityDiedEvent>>()
 
         .add_systems<enemy_movement_sine_wave_system, enemy_movement_homing_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
