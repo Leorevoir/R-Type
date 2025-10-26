@@ -18,6 +18,12 @@ struct GameOverRoot {
 };
 struct YouWinRoot {
 };
+struct HudRoot {
+};
+struct ScoreText {
+};
+struct LivesText {
+};
 
 /* ================================================================================= */
 /* Game Components */
