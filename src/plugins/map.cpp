@@ -143,16 +143,16 @@ static void cleanup_map_system(r::ecs::Commands &commands, r::ecs::Query<r::ecs:
 
 void MapPlugin::build(r::Application &app)
 {
-    app.add_systems<spawn_scenery_system>(r::OnEnter{GameState::MainMenu})
+    app.add_systems<cleanup_map_system>(r::OnEnter{GameState::MainMenu})
+        .add_systems<cleanup_map_system>(r::OnEnter{GameState::EnemiesBattle})
+
+        .add_systems<spawn_scenery_system>(r::OnEnter{GameState::MainMenu})
         .add_systems<spawn_background_system>(r::OnEnter{GameState::MainMenu})
 
         .add_systems<follow_camera_background_system, scroll_scenery_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::MainMenu>>()
         .run_or<r::run_conditions::in_state<GameState::EnemiesBattle>>()
         .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
-
-        .add_systems<cleanup_map_system>(r::OnExit{GameState::BossBattle})
-        .add_systems<cleanup_map_system>(r::OnExit{GameState::EnemiesBattle})
 
         .add_systems<spawn_scenery_system>(r::OnEnter{GameState::EnemiesBattle})
         .add_systems<spawn_background_system>(r::OnEnter{GameState::EnemiesBattle});
