@@ -197,7 +197,7 @@ static void player_bullet_collision_system(r::ecs::EventWriter<PlayerDiedEvent> 
 
 static void force_bullet_collision_system(r::ecs::EventWriter<EntityDiedEvent> entity_death_writer,
     r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::With<Force>> force_query,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<EnemyBullet>> bullet_query)
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<EnemyBullet>, r::ecs::Without<Unblockable>> bullet_query)
 {
     if (force_query.size() == 0 || bullet_query.size() == 0) {
         return;
@@ -206,7 +206,7 @@ static void force_bullet_collision_system(r::ecs::EventWriter<EntityDiedEvent> e
     auto [force_transform, force_collider, _] = *force_query.begin();
 
     for (auto bullet_it = bullet_query.begin(); bullet_it != bullet_query.end(); ++bullet_it) {
-        auto [bullet_transform, bullet_collider, __] = *bullet_it;
+        auto [bullet_transform, bullet_collider, __, ___] = *bullet_it;
 
         r::Vec3f force_center = force_transform.ptr->position + force_collider.ptr->offset;
         r::Vec3f bullet_center = bullet_transform.ptr->position + bullet_collider.ptr->offset;

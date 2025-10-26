@@ -46,6 +46,9 @@ struct WaveCannonBeam {
 };
 struct EnemyBullet {
 };
+/* This component marks a projectile as unblockable by the Force shield. */
+struct Unblockable {
+};
 
 struct FireCooldown {
         float timer = 0.0f;

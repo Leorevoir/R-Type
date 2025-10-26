@@ -281,7 +281,8 @@ static void boss_shooting_vertical_patrol_system(r::ecs::Commands &commands, r::
                         .id = bullet_assets.ptr->big_missile,
                         .color = r::Color{255, 255, 255, 255},
                         .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, -static_cast<float>(M_PI) / 2.0f},
-                    });
+                    })
+                .insert(Unblockable{});
             }
         }
     }
