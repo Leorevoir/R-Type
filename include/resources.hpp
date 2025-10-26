@@ -79,3 +79,7 @@ struct BossBulletAssets {
         r::MeshHandle big_missile = r::MeshInvalidHandle;
         r::MeshHandle small_missile = r::MeshInvalidHandle;
 };
+
+struct PlayerLives {
+        int count = 3;
+};
