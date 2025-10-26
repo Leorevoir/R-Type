@@ -47,38 +47,42 @@ static void setup_levels_system(r::ecs::Commands &commands)
 {
     GameLevels game_levels;
     game_levels.levels = {
-        {.id = 1,
+        {
+            .id = 1,
             .enemy_spawn_interval = 0.75f,
             .boss_spawn_time = 5.0f,
             .background_texture_path = "assets/textures/background.png",
             .scenery_model_path = "assets/models/BlackBuilding.glb",
             .enemy_types =
                 {
-                    {"assets/models/enemy.glb", 1, 2.0f},
-                    {"assets/models/enemy.glb", 2, 1.5f},/* PLACEHOLDER : A slightly tougher, slower variant */
+                    {"assets/models/enemy.glb", 1, 2.0f, EnemyBehaviorType::Straight},
+                    {"assets/models/enemy.glb", 2, 1.5f, EnemyBehaviorType::Straight},
                 },
-            .boss_data = {.model_path = "assets/models/Boss.glb", .max_health = 500, .behavior = BossBehaviorType::VerticalPatrol}},
-        {.id = 2,
+            .boss_data = {.model_path = "assets/models/Boss.glb", .max_health = 500, .behavior = BossBehaviorType::VerticalPatrol},
+        },
+        {
+            .id = 2,
             .enemy_spawn_interval = 0.5f,
             .boss_spawn_time = 8.0f,
             .background_texture_path = "assets/textures/background_level2.png",
             .scenery_model_path = "assets/models/Asteroid.glb",
-            .enemy_types =
-                {
-                    {"assets/models/enemy.glb", 2, 3.0f}/* PLACEHOLDER : Faster enemies for level 2 */
-                },
-            .boss_data = {.model_path = "assets/models/Boss.glb", .max_health = 750, .behavior = BossBehaviorType::HomingAttack}},
-        {.id = 3,
+            .enemy_types = {{"assets/models/enemy.glb", 2, 3.0f, EnemyBehaviorType::SineWave}},
+            .boss_data = {.model_path = "assets/models/Boss.glb", .max_health = 750, .behavior = BossBehaviorType::HomingAttack},
+        },
+        {
+            .id = 3,
             .enemy_spawn_interval = 0.3f,
             .boss_spawn_time = 10.0f,
             .background_texture_path = "assets/textures/background_level3.png",
             .scenery_model_path = "assets/models/FortressWall.glb",
             .enemy_types =
                 {
-                    {"assets/models/enemy.glb", 3, 2.0f},
-                    {"assets/models/enemy.glb", 1, 4.0f},
+                    {"assets/models/enemy.glb", 3, 2.0f, EnemyBehaviorType::Homing},
+                    {"assets/models/enemy.glb", 1, 4.0f, EnemyBehaviorType::Straight},
                 },
-            .boss_data = {.model_path = "assets/models/Boss.glb", .max_health = 1000, .behavior = BossBehaviorType::Turret}}};
+            .boss_data = {.model_path = "assets/models/Boss.glb", .max_health = 1000, .behavior = BossBehaviorType::Turret},
+        },
+    };
     commands.insert_resource(game_levels);
     commands.insert_resource(CurrentLevel{0}); /* Start at level 0 */
 }

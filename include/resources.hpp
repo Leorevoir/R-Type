@@ -8,10 +8,17 @@
 /* Level Configuration */
 /* ================================================================================= */
 
+enum class EnemyBehaviorType {
+    Straight,
+    SineWave,
+    Homing,
+};
+
 struct EnemyData {
         std::string model_path;
         int health;
         float speed;
+        EnemyBehaviorType behavior;
 };
 
 enum class BossBehaviorType {

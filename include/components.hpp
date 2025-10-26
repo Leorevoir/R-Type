@@ -77,6 +77,20 @@ struct ScrollingScenery {
 };
 
 /* ================================================================================= */
+/* Enemy Behavior Components */
+/* ================================================================================= */
+
+struct SineWaveEnemy {
+        float angle = 0.0f;
+        float amplitude = 1.5f;
+        float frequency = 3.0f;
+};
+
+struct HomingEnemy {
+        float turn_speed = 1.5f; /* Controls how quickly the enemy can turn towards the player */
+};
+
+/* ================================================================================= */
 /* Boss Behavior Components */
 /* These are "tag" components used to assign specific behaviors to a boss entity. */
 /* ================================================================================= */

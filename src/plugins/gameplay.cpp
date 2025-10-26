@@ -13,6 +13,7 @@
 #include <R-Engine/ECS/Query.hpp>
 #include <R-Engine/ECS/RunConditions.hpp>
 #include <R-Engine/Plugins/MeshPlugin.hpp>
+#include <cmath>
 #include <cstdlib>
 #include <string>
 #include <utility>
@@ -61,7 +62,7 @@ static void enemy_spawner_system(r::ecs::Commands &commands, r::ecs::ResMut<Enem
 
         r::MeshHandle enemy_mesh_handle = meshes.ptr->add(enemy_to_spawn.model_path);
         if (enemy_mesh_handle != r::MeshInvalidHandle) {
-            commands.spawn(Enemy{}, Health{enemy_to_spawn.health, enemy_to_spawn.health},
+            auto enemy_cmds = commands.spawn(Enemy{}, Health{enemy_to_spawn.health, enemy_to_spawn.health},
                 r::Transform3d{
                     .position = {15.0f, random_y, 0.0f},
                     .scale = {1.0f, 1.0f, 1.0f},
@@ -75,6 +76,23 @@ static void enemy_spawner_system(r::ecs::Commands &commands, r::ecs::ResMut<Enem
                     .color = r::Color{255, 255, 255, 255},
                     .rotation_offset = {0.0f, -(static_cast<float>(M_PI) / 2.0f), 0.0f},
                 });
+
+            /* Add the correct behavior component based on level data */
+            switch (enemy_to_spawn.behavior) {
+                case EnemyBehaviorType::Straight:
+                    /* Default behavior, no component needed */
+                    break;
+                case EnemyBehaviorType::SineWave:
+                    enemy_cmds.insert(SineWaveEnemy{});
+                    break;
+                case EnemyBehaviorType::Homing:
+                    enemy_cmds.insert(HomingEnemy{});
+                    break;
+                default:
+                    /* Safely do nothing for unhandled cases */
+                    break;
+            }
+
         } else {
             r::Logger::error("Failed to queue enemy model for loading: " + enemy_to_spawn.model_path);
         }
@@ -145,6 +163,60 @@ static void boss_spawn_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Mesh
 
     } else {
         r::Logger::error("Failed to queue boss model for loading: " + boss_data.model_path);
+    }
+}
+
+/* ================================================================================= */
+/* Enemy Behavior Systems */
+/* ================================================================================= */
+
+static void enemy_movement_sine_wave_system(r::ecs::Res<r::core::FrameTime> time,
+    r::ecs::Query<r::ecs::Mut<Velocity>, r::ecs::Mut<SineWaveEnemy>> query)
+{
+    for (auto [velocity, sine_wave] : query) {
+        /* Update the angle for the sine calculation */
+        sine_wave.ptr->angle += sine_wave.ptr->frequency * time.ptr->delta_time;
+
+        /* The horizontal speed is constant (set at spawn), we only modify the vertical speed */
+        float base_horizontal_speed = velocity.ptr->value.x;
+        velocity.ptr->value.y = std::sin(sine_wave.ptr->angle) * sine_wave.ptr->amplitude;
+
+        /* Ensure horizontal speed is maintained */
+        velocity.ptr->value.x = base_horizontal_speed;
+    }
+}
+
+static void enemy_movement_homing_system(r::ecs::Res<r::core::FrameTime> time,
+    r::ecs::Query<r::ecs::Mut<Velocity>, r::ecs::Ref<r::Transform3d>, r::ecs::Ref<HomingEnemy>> enemy_query,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::With<Player>> player_query)
+{
+    if (player_query.size() == 0) {
+        return; /* No player to home in on */
+    }
+    auto [player_transform, _p] = *player_query.begin();
+
+    for (auto [velocity, enemy_transform, homing] : enemy_query) {
+        /* Calculate direction towards the player */
+        r::Vec3f direction_to_player = (player_transform.ptr->position - enemy_transform.ptr->position);
+        if (direction_to_player.length_sq() > 0) {
+            direction_to_player = direction_to_player.normalize();
+        }
+
+        /* Get the current velocity's direction and speed */
+        float current_speed = velocity.ptr->value.length();
+        r::Vec3f current_direction = {0, 0, 0};
+        if (current_speed > 0) {
+            current_direction = velocity.ptr->value / current_speed;
+        }
+
+        /* Interpolate towards the target direction to create a turning effect */
+        r::Vec3f new_direction = current_direction.lerp(direction_to_player, time.ptr->delta_time * homing.ptr->turn_speed);
+        if (new_direction.length_sq() > 0) {
+            new_direction = new_direction.normalize();
+        }
+
+        /* Apply the new direction, maintaining the original speed */
+        velocity.ptr->value = new_direction * current_speed;
     }
 }
 
@@ -265,6 +337,9 @@ void GameplayPlugin::build(r::Application &app)
         .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
 
         .add_systems<enemy_spawner_system>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
+
+        .add_systems<enemy_movement_sine_wave_system, enemy_movement_homing_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
 
         .add_systems<boss_spawn_system>(r::OnEnter(GameState::BossBattle))
