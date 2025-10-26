@@ -3,6 +3,7 @@
 #include <components.hpp>
 #include <events.hpp>
 #include <plugins/map.hpp>
+#include <resources.hpp>
 #include <state.hpp>
 
 #include <R-Engine/Application.hpp>
@@ -15,17 +16,16 @@
 #include <R-Engine/Plugins/RenderPlugin.hpp>
 #include <cmath>
 #include <cstdlib>
+#include <utility>
 
-static void spawn_scenery_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::Camera3d> camera)
+static void spawn_scenery_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::Camera3d> camera,
+    r::ecs::Res<CurrentLevel> current_level, r::ecs::Res<GameLevels> game_levels)
 {
-    ::Model building_model = r::Mesh3d::Glb("assets/models/BlackBuilding.glb");
-    if (building_model.meshCount == 0) {
-        r::Logger::error("Cannot load black building model");
-        return;
-    }
-    r::MeshHandle building_handle = meshes.ptr->add(building_model);
+    const auto &level_data = game_levels.ptr->levels[static_cast<size_t>(current_level.ptr->index)];
+
+    r::MeshHandle building_handle = meshes.ptr->add(level_data.scenery_model_path);
     if (building_handle == r::MeshInvalidHandle) {
-        r::Logger::error("Failed to load black building mesh.");
+        r::Logger::error("Failed to queue scenery mesh for loading: " + level_data.scenery_model_path);
         return;
     }
 
@@ -66,8 +66,11 @@ static void spawn_scenery_system(r::ecs::Commands &commands, r::ecs::ResMut<r::M
     }
 }
 
-static void spawn_background_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::Camera3d> camera)
+static void spawn_background_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::Camera3d> camera,
+    r::ecs::Res<CurrentLevel> current_level, r::ecs::Res<GameLevels> game_levels)
 {
+    r::Logger::info("spawn_background_system: Running.");
+    const auto &level_data = game_levels.ptr->levels[static_cast<size_t>(current_level.ptr->index)];
     const float BACKGROUND_Z_DEPTH = -20.0f;
 
     const float effective_distance = camera.ptr->position.z - BACKGROUND_Z_DEPTH;
@@ -76,15 +79,11 @@ static void spawn_background_system(r::ecs::Commands &commands, r::ecs::ResMut<r
     const float correct_view_width = correct_view_height * (static_cast<float>(1280) / static_cast<float>(720));
 
     ::Mesh background_mesh_data = GenMeshPlane(correct_view_width, correct_view_height, 1, 1);
-    if (background_mesh_data.vertexCount == 0) {
-        r::Logger::error("Impossible to load background.");
-        return;
-    }
-
-    r::MeshHandle background_mesh_handle = meshes.ptr->add(background_mesh_data, "assets/textures/background.png");
+    r::Logger::info("spawn_background_system: Queuing background mesh with texture: " + level_data.background_texture_path);
+    r::MeshHandle background_mesh_handle = meshes.ptr->add(std::move(background_mesh_data), level_data.background_texture_path);
 
     if (background_mesh_handle == r::MeshInvalidHandle) {
-        r::Logger::error("Impossible to load texture : assets/textures/back2.png");
+        r::Logger::error("Impossible to load texture: " + level_data.background_texture_path);
         return;
     }
 
@@ -144,15 +143,16 @@ static void cleanup_map_system(r::ecs::Commands &commands, r::ecs::Query<r::ecs:
 
 void MapPlugin::build(r::Application &app)
 {
-    app.add_systems<spawn_scenery_system>(r::OnEnter{GameState::MainMenu})
+    app.add_systems<cleanup_map_system>(r::OnEnter{GameState::MainMenu})
+        .add_systems<cleanup_map_system>(r::OnEnter{GameState::EnemiesBattle})
+
+        .add_systems<spawn_scenery_system>(r::OnEnter{GameState::MainMenu})
         .add_systems<spawn_background_system>(r::OnEnter{GameState::MainMenu})
 
         .add_systems<follow_camera_background_system, scroll_scenery_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::MainMenu>>()
         .run_or<r::run_conditions::in_state<GameState::EnemiesBattle>>()
         .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
-
-        .add_systems<cleanup_map_system>(r::OnExit{GameState::MainMenu})
 
         .add_systems<spawn_scenery_system>(r::OnEnter{GameState::EnemiesBattle})
         .add_systems<spawn_background_system>(r::OnEnter{GameState::EnemiesBattle});

@@ -16,6 +16,8 @@ struct MenuRoot {
 };
 struct GameOverRoot {
 };
+struct YouWinRoot {
+};
 
 /* ================================================================================= */
 /* Game Components */
@@ -44,6 +46,9 @@ struct WaveCannonBeam {
 };
 struct EnemyBullet {
 };
+/* This component marks a projectile as unblockable by the Force shield. */
+struct Unblockable {
+};
 
 struct FireCooldown {
         float timer = 0.0f;
@@ -63,13 +68,39 @@ struct Health {
         int max;
 };
 
-struct BlackBuilding {        
+struct BlackBuilding {
 };
 
 struct Background {
-    float scroll_speed = 2.0f;
+        float scroll_speed = 2.0f;
 };
 
 struct ScrollingScenery {
-    float scroll_speed = 4.0f;
+        float scroll_speed = 4.0f;
+};
+
+/* ================================================================================= */
+/* Enemy Behavior Components */
+/* ================================================================================= */
+
+struct SineWaveEnemy {
+        float angle = 0.0f;
+        float amplitude = 1.5f;
+        float frequency = 3.0f;
+};
+
+struct HomingEnemy {
+        float turn_speed = 1.5f; /* Controls how quickly the enemy can turn towards the player */
+};
+
+/* ================================================================================= */
+/* Boss Behavior Components */
+/* These are "tag" components used to assign specific behaviors to a boss entity. */
+/* ================================================================================= */
+
+struct VerticalPatrolBoss {
+};
+struct HomingAttackBoss {
+};
+struct TurretBoss {
 };

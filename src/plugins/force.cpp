@@ -23,7 +23,7 @@ static constexpr float FORCE_LAUNCH_SPEED = 8.0f;
 static constexpr float FORCE_RECALL_SPEED = 15.0f;
 static constexpr float FORCE_REATTACH_DISTANCE = 0.5f;
 static constexpr float FORCE_ACTION_COOLDOWN = 0.5f;
-static constexpr float FORCE_FRONT_OFFSET_X = 1.5f;
+static constexpr float FORCE_FRONT_OFFSET_X = 1.75f;
 static constexpr float FORCE_FIRE_RATE = 0.25f;
 static constexpr float FORCE_BULLET_SPEED = 10.0f;
 
