@@ -86,7 +86,8 @@ static void build_game_hud(r::ecs::Commands &cmds)
                     .font_path = {},
                 },
                 r::Style{
-                    .align_self = r::AlignSelf::Center,
+                    .width = 200.f,
+                    .background = r::Color{0, 0, 0, 0},
                 },
                 r::ComputedLayout{}, r::Visibility::Visible);
             parent.spawn(r::UiNode{}, LivesText{},
@@ -97,7 +98,9 @@ static void build_game_hud(r::ecs::Commands &cmds)
                     .font_path = {},
                 },
                 r::Style{
-                    .align_self = r::AlignSelf::Center,
+                    .width = 100.f,
+                    .background = r::Color{0, 0, 0, 0},
+                    .align = r::AlignItems::End,
                 },
                 r::ComputedLayout{}, r::Visibility::Visible);
         });
