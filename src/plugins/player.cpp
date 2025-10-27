@@ -24,7 +24,7 @@
 /* Constants */
 /* ================================================================================= */
 
-static constexpr float PLAYER_SPEED = 3.5f;
+static constexpr float PLAYER_SPEED = 6.0f;
 static constexpr float BULLET_SPEED = 8.0f;
 static constexpr float PLAYER_FIRE_RATE = 0.45f;
 static constexpr float PLAYER_BOUNDS_PADDING = 0.5f;
