@@ -25,10 +25,19 @@
 #include <ctime>
 
 /**
- * @brief (STARTUP) Sets up the game world.
- * @details This system runs once when entering the game. It configures the camera
- * and binds input actions.
- */
+* @brief Disables the default ESC key behavior for closing the window.
+* @details This allows the game to handle ESC for pausing without quitting.
+*/
+static void disable_escape_key_system()
+{
+    SetExitKey(KEY_NULL);
+}
+
+/**
+* @brief (STARTUP) Sets up the game world.
+* @details This system runs once when entering the game. It configures the camera
+* and binds input actions.
+*/
 static void setup_core_game_system(r::ecs::ResMut<r::Camera3d> camera, r::ecs::ResMut<r::InputMap> input_map)
 {
     /* --- Configure Camera --- */
@@ -169,6 +178,7 @@ int main()
         //.add_plugins(DebugPlugin{})
 
         /* Add the remaining core setup */
+        .add_systems<disable_escape_key_system>(r::Schedule::STARTUP)
         .add_systems<setup_core_game_system>(r::Schedule::STARTUP)
         .add_systems<setup_levels_system>(r::Schedule::STARTUP)
 
