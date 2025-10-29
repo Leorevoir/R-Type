@@ -18,6 +18,7 @@
 #include <components/player.hpp>
 #include <components/ui.hpp>
 #include <resources/game_state.hpp>
+#include <resources/ui_state.hpp>
 #include <state/game_state.hpp>
 
 /* ================================================================================= */
@@ -172,7 +173,8 @@ static void build_main_menu(r::ecs::Commands &cmds)
 }
 
 static void menu_button_handler(r::ecs::EventReader<r::UiClick> click_reader, r::ecs::Query<r::ecs::Ref<MenuButton>> buttons,
-    r::ecs::ResMut<r::NextState<GameState>> next_state)
+    r::ecs::ResMut<r::NextState<GameState>> next_state, r::ecs::ResMut<PreviousGameState> prev_game_state,
+    r::ecs::Res<r::State<GameState>> current_state)
 {
     for (const auto &click : click_reader) {
         const r::ecs::Entity clicked_entity = click.entity;
@@ -195,7 +197,9 @@ static void menu_button_handler(r::ecs::EventReader<r::UiClick> click_reader, r:
                 next_state.ptr->set(GameState::EnemiesBattle);
                 break;
             case MenuButton::Action::Options:
-                r::Logger::info("Options clicked (not implemented)");
+                r::Logger::info("Options clicked, opening settings menu...");
+                prev_game_state.ptr->state = current_state.ptr->current();
+                next_state.ptr->set(GameState::SettingsMenu);
                 break;
             case MenuButton::Action::Quit:
                 r::Logger::info("Quitting game...");
@@ -358,6 +362,7 @@ void MenuPlugin::build(r::Application &app)
 {
     app
         /* Global UI setup */
+        .insert_resource(PreviousGameState{})
         .add_systems<setup_ui_theme>(r::Schedule::STARTUP)
 
         /* Main Menu State */

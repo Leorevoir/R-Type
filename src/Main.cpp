@@ -1,12 +1,14 @@
-#include "plugins/enemy.hpp"
 #include <plugins/combat.hpp>
 #include <plugins/debug.hpp>
+#include <plugins/enemy.hpp>
 #include <plugins/force.hpp>
 #include <plugins/game_state.hpp>
 #include <plugins/gameplay.hpp>
 #include <plugins/map.hpp>
 #include <plugins/menu.hpp>
+#include <plugins/pause.hpp>
 #include <plugins/player.hpp>
+#include <plugins/settings.hpp>
 
 #include <events/game_events.hpp>
 #include <resources/level.hpp>
@@ -43,6 +45,7 @@ static void setup_core_game_system(r::ecs::ResMut<r::Camera3d> camera, r::ecs::R
     input_map.ptr->bindAction("MoveRight", r::KEYBOARD, KEY_D);
     input_map.ptr->bindAction("Fire", r::KEYBOARD, KEY_SPACE);
     input_map.ptr->bindAction("Force", r::KEYBOARD, KEY_LEFT_SHIFT);
+    input_map.ptr->bindAction("Pause", r::KEYBOARD, KEY_ESCAPE);
 }
 
 static void setup_levels_system(r::ecs::Commands &commands)
@@ -155,6 +158,8 @@ int main()
         /* Add all our custom game plugins */
         .add_plugins(GameStatePlugin{})
         .add_plugins(MenuPlugin{})
+        .add_plugins(PausePlugin{})
+        .add_plugins(SettingsPlugin{})
         .add_plugins(MapPlugin{})
         .add_plugins(PlayerPlugin{})
         .add_plugins(ForcePlugin{})

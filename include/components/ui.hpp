@@ -5,9 +5,23 @@ struct MenuButton {
         Action action = Action::None;
 };
 
+struct PauseMenuButton {
+        enum class Action { None, Resume, Options, BackToMenu };
+        Action action = Action::None;
+};
+
+struct SettingsMenuButton {
+        enum class Action { None, Video, Audio, Controls, Accessibility, Back };
+        Action action = Action::None;
+};
+
 /* --- UI Root Marker Components --- */
 
 struct MenuRoot {
+};
+struct PauseRoot {
+};
+struct SettingsRoot {
 };
 struct GameOverRoot {
 };
@@ -21,4 +35,9 @@ struct HudRoot {
 struct ScoreText {
 };
 struct LivesText {
+};
+
+/* --- Settings Menu Element Marker Components --- */
+
+struct SettingsTitleText {
 };

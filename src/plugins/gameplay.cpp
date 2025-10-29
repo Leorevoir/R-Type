@@ -89,6 +89,8 @@ void GameplayPlugin::build(r::Application &app)
         .insert_resource(BossSpawnTimer{})
 
         .add_systems<movement_system>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
+        .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
         .add_systems<setup_missile_assets_system>(r::OnEnter{GameState::EnemiesBattle})
 
         .add_systems<setup_level_timers_system>(r::OnEnter{GameState::EnemiesBattle})
