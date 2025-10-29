@@ -2,6 +2,7 @@
 #include "R-Engine/Components/Transform3d.hpp"
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Logger.hpp>
+#include <R-Engine/Core/States.hpp>
 #include <R-Engine/ECS/Command.hpp>
 #include <R-Engine/ECS/Event.hpp>
 #include <R-Engine/ECS/Query.hpp>
@@ -14,6 +15,7 @@
 #include <events/game_events.hpp>
 #include <resources/level.hpp>
 #include <state/game_state.hpp>
+#include <state/run_conditions.hpp>
 
 /* ================================================================================= */
 /* Event Handlers */
@@ -293,6 +295,7 @@ void CombatPlugin::build(r::Application &app)
         .add_systems<reset_level_progress_system>(r::OnTransition{GameState::YouWin, GameState::EnemiesBattle})
 
         .add_systems<cleanup_battle_system>(r::OnEnter{GameState::EnemiesBattle})
+        .run_unless<run_conditions::is_resuming_from_pause>()
 
         .add_systems<despawn_offscreen_system>(r::Schedule::UPDATE)
 

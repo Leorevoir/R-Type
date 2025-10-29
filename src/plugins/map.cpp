@@ -14,6 +14,7 @@
 #include <components/map.hpp>
 #include <resources/level.hpp>
 #include <state/game_state.hpp>
+#include <state/run_conditions.hpp>
 
 static void spawn_scenery_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::Camera3d> camera,
     r::ecs::Res<CurrentLevel> current_level, r::ecs::Res<GameLevels> game_levels)
@@ -141,6 +142,7 @@ void MapPlugin::build(r::Application &app)
 {
     app.add_systems<cleanup_map_system>(r::OnEnter{GameState::MainMenu})
         .add_systems<cleanup_map_system>(r::OnEnter{GameState::EnemiesBattle})
+        .run_unless<run_conditions::is_resuming_from_pause>()
 
         .add_systems<spawn_scenery_system>(r::OnEnter{GameState::MainMenu})
         .add_systems<spawn_background_system>(r::OnEnter{GameState::MainMenu})
@@ -151,5 +153,7 @@ void MapPlugin::build(r::Application &app)
         .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
 
         .add_systems<spawn_scenery_system>(r::OnEnter{GameState::EnemiesBattle})
-        .add_systems<spawn_background_system>(r::OnEnter{GameState::EnemiesBattle});
+        .run_unless<run_conditions::is_resuming_from_pause>()
+        .add_systems<spawn_background_system>(r::OnEnter{GameState::EnemiesBattle})
+        .run_unless<run_conditions::is_resuming_from_pause>();
 }

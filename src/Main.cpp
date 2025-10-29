@@ -84,10 +84,13 @@ static void setup_levels_system(r::ecs::Commands &commands)
                         150,
                     },
                 },
-            .boss_data = {.model_path = "assets/models/Boss.glb",
-                .max_health = 500,
-                .behavior = BossBehaviorType::VerticalPatrol,
-                .score_value = 5000},
+            .boss_data =
+                {
+                    .model_path = "assets/models/Boss.glb",
+                    .max_health = 500,
+                    .behavior = BossBehaviorType::VerticalPatrol,
+                    .score_value = 5000,
+                },
         },
         {
             .id = 2,

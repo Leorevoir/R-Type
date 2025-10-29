@@ -1,6 +1,7 @@
 #include "plugins/pause.hpp"
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Logger.hpp>
+#include <R-Engine/Core/States.hpp>
 #include <R-Engine/ECS/Command.hpp>
 #include <R-Engine/ECS/Query.hpp>
 #include <R-Engine/ECS/RunConditions.hpp>
@@ -65,7 +66,7 @@ static void cleanup_pause_menu(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::Wit
 
 static void pause_menu_button_handler(r::ecs::EventReader<r::UiClick> click_reader, r::ecs::Query<r::ecs::Ref<PauseMenuButton>> buttons,
     r::ecs::ResMut<r::NextState<GameState>> next_state, r::ecs::ResMut<PreviousGameState> prev_game_state,
-    r::ecs::Res<r::State<GameState>> current_state)
+    r::ecs::Res<r::State<GameState>> current_state, r::ecs::Res<StateBeforePause> state_before_pause)
 {
     for (const auto &click : click_reader) {
         if (click.entity == r::ecs::NULL_ENTITY)
@@ -78,7 +79,7 @@ static void pause_menu_button_handler(r::ecs::EventReader<r::UiClick> click_read
             auto [btn] = *it;
             switch (btn.ptr->action) {
                 case PauseMenuButton::Action::Resume:
-                    next_state.ptr->set(GameState::EnemiesBattle); /* I'll later implement a correct resume */
+                    next_state.ptr->set(state_before_pause.ptr->state);
                     break;
                 case PauseMenuButton::Action::Options:
                     prev_game_state.ptr->state = current_state.ptr->current();
@@ -96,17 +97,20 @@ static void pause_menu_button_handler(r::ecs::EventReader<r::UiClick> click_read
 }
 
 static void check_for_pause_system(r::ecs::Res<r::UserInput> user_input, r::ecs::Res<r::InputMap> input_map,
-    r::ecs::ResMut<r::NextState<GameState>> next_state)
+    r::ecs::ResMut<r::NextState<GameState>> next_state, r::ecs::Res<r::State<GameState>> current_state,
+    r::ecs::ResMut<StateBeforePause> state_before_pause)
 {
     if (input_map.ptr->isActionPressed("Pause", *user_input.ptr)) {
         r::Logger::info("Pause button pressed. Pausing game.");
+        state_before_pause.ptr->state = current_state.ptr->current();
         next_state.ptr->set(GameState::Paused);
     }
 }
 
 void PausePlugin::build(r::Application &app)
 {
-    app.add_systems<build_pause_menu>(r::OnEnter{GameState::Paused})
+    app.insert_resource(StateBeforePause{})
+        .add_systems<build_pause_menu>(r::OnEnter{GameState::Paused})
         .add_systems<cleanup_pause_menu>(r::OnExit{GameState::Paused})
         .add_systems<pause_menu_button_handler>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::Paused>>()
