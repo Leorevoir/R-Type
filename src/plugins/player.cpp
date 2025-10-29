@@ -1,8 +1,4 @@
-#include <components.hpp>
-#include <plugins/player.hpp>
-#include <resources.hpp>
-#include <state.hpp>
-
+#include "plugins/player.hpp"
 #include "R-Engine/Components/Transform3d.hpp"
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/FrameTime.hpp>
@@ -17,13 +13,18 @@
 #include <R-Engine/Plugins/WindowPlugin.hpp>
 #include <algorithm>
 #include <cmath>
-#include <utility>
+
+#include <components/common.hpp>
+#include <components/player.hpp>
+#include <components/projectiles.hpp>
+#include <resources/assets.hpp>
+#include <state/game_state.hpp>
 
 /* ================================================================================= */
 /* Constants */
 /* ================================================================================= */
 
-static constexpr float PLAYER_SPEED = 3.5f;
+static constexpr float PLAYER_SPEED = 6.0f;
 static constexpr float BULLET_SPEED = 8.0f;
 static constexpr float PLAYER_FIRE_RATE = 0.45f;
 static constexpr float PLAYER_BOUNDS_PADDING = 0.5f;

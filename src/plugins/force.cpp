@@ -1,8 +1,4 @@
-#include <components.hpp>
-#include <plugins/force.hpp>
-#include <resources.hpp>
-#include <state.hpp>
-
+#include "plugins/force.hpp"
 #include "R-Engine/Components/Transform3d.hpp"
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/FrameTime.hpp>
@@ -12,6 +8,12 @@
 #include <R-Engine/ECS/RunConditions.hpp>
 #include <R-Engine/Plugins/InputPlugin.hpp>
 #include <R-Engine/Plugins/MeshPlugin.hpp>
+
+#include <components/common.hpp>
+#include <components/player.hpp>
+#include <components/projectiles.hpp>
+#include <resources/assets.hpp>
+#include <state/game_state.hpp>
 
 // clang-format off
 

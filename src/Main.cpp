@@ -1,14 +1,16 @@
-#include "plugins/map.hpp"
-#include <events.hpp>
+#include "plugins/enemy.hpp"
 #include <plugins/combat.hpp>
 #include <plugins/debug.hpp>
 #include <plugins/force.hpp>
 #include <plugins/game_state.hpp>
 #include <plugins/gameplay.hpp>
+#include <plugins/map.hpp>
 #include <plugins/menu.hpp>
 #include <plugins/player.hpp>
-#include <resources.hpp>
-#include <state.hpp>
+
+#include <events/game_events.hpp>
+#include <resources/level.hpp>
+#include <state/game_state.hpp>
 
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Backend.hpp>
@@ -50,37 +52,85 @@ static void setup_levels_system(r::ecs::Commands &commands)
         {
             .id = 1,
             .enemy_spawn_interval = 0.75f,
-            .boss_spawn_time = 5.0f,
+            .boss_spawn_time = 10.0f,
             .background_texture_path = "assets/textures/background.png",
             .scenery_model_path = "assets/models/BlackBuilding.glb",
             .enemy_types =
                 {
-                    {"assets/models/enemy.glb", 1, 2.0f, EnemyBehaviorType::Straight},
-                    {"assets/models/enemy.glb", 2, 1.5f, EnemyBehaviorType::Straight},
+                    {
+                        "assets/models/enemy.glb",
+                        1,
+                        2.0f,
+                        EnemyBehaviorType::Straight,
+                        100,
+                    },
+                    {
+                        "assets/models/enemy.glb",
+                        2,
+                        1.5f,
+                        EnemyBehaviorType::Straight,
+                        150,
+                    },
                 },
-            .boss_data = {.model_path = "assets/models/Boss.glb", .max_health = 500, .behavior = BossBehaviorType::VerticalPatrol},
+            .boss_data = {.model_path = "assets/models/Boss.glb",
+                .max_health = 500,
+                .behavior = BossBehaviorType::VerticalPatrol,
+                .score_value = 5000},
         },
         {
             .id = 2,
             .enemy_spawn_interval = 0.5f,
-            .boss_spawn_time = 8.0f,
+            .boss_spawn_time = 15.0f,
             .background_texture_path = "assets/textures/background_level2.png",
             .scenery_model_path = "assets/models/Asteroid.glb",
-            .enemy_types = {{"assets/models/enemy.glb", 2, 3.0f, EnemyBehaviorType::SineWave}},
-            .boss_data = {.model_path = "assets/models/Boss.glb", .max_health = 750, .behavior = BossBehaviorType::HomingAttack},
+            .enemy_types =
+                {
+                    {
+                        "assets/models/enemy.glb",
+                        2,
+                        3.0f,
+                        EnemyBehaviorType::SineWave,
+                        200,
+                    },
+                },
+            .boss_data =
+                {
+                    .model_path = "assets/models/Boss.glb",
+                    .max_health = 750,
+                    .behavior = BossBehaviorType::HomingAttack,
+                    .score_value = 7500,
+                },
         },
         {
             .id = 3,
             .enemy_spawn_interval = 0.3f,
-            .boss_spawn_time = 10.0f,
+            .boss_spawn_time = 20.0f,
             .background_texture_path = "assets/textures/background_level3.png",
             .scenery_model_path = "assets/models/FortressWall.glb",
             .enemy_types =
                 {
-                    {"assets/models/enemy.glb", 3, 2.0f, EnemyBehaviorType::Homing},
-                    {"assets/models/enemy.glb", 1, 4.0f, EnemyBehaviorType::Straight},
+                    {
+                        "assets/models/enemy.glb",
+                        3,
+                        2.0f,
+                        EnemyBehaviorType::Homing,
+                        300,
+                    },
+                    {
+                        "assets/models/enemy.glb",
+                        1,
+                        4.0f,
+                        EnemyBehaviorType::Straight,
+                        100,
+                    },
                 },
-            .boss_data = {.model_path = "assets/models/Boss.glb", .max_health = 1000, .behavior = BossBehaviorType::Turret},
+            .boss_data =
+                {
+                    .model_path = "assets/models/Boss.glb",
+                    .max_health = 1000,
+                    .behavior = BossBehaviorType::Turret,
+                    .score_value = 10000,
+                },
         },
     };
     commands.insert_resource(game_levels);
@@ -105,12 +155,13 @@ int main()
         /* Add all our custom game plugins */
         .add_plugins(GameStatePlugin{})
         .add_plugins(MenuPlugin{})
+        .add_plugins(MapPlugin{})
         .add_plugins(PlayerPlugin{})
         .add_plugins(ForcePlugin{})
+        .add_plugins(EnemyPlugin{})
         .add_plugins(GameplayPlugin{})
         .add_plugins(CombatPlugin{})
         //.add_plugins(DebugPlugin{})
-        .add_plugins(MapPlugin{})
 
         /* Add the remaining core setup */
         .add_systems<setup_core_game_system>(r::Schedule::STARTUP)

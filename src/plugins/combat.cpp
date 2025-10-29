@@ -1,9 +1,4 @@
-#include <components.hpp>
-#include <events.hpp>
-#include <plugins/combat.hpp>
-#include <resources.hpp>
-#include <state.hpp>
-
+#include "plugins/combat.hpp"
 #include "R-Engine/Components/Transform3d.hpp"
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Logger.hpp>
@@ -11,6 +6,14 @@
 #include <R-Engine/ECS/Event.hpp>
 #include <R-Engine/ECS/Query.hpp>
 #include <R-Engine/ECS/RunConditions.hpp>
+
+#include <components/common.hpp>
+#include <components/enemy.hpp>
+#include <components/player.hpp>
+#include <components/projectiles.hpp>
+#include <events/game_events.hpp>
+#include <resources/level.hpp>
+#include <state/game_state.hpp>
 
 /* ================================================================================= */
 /* Event Handlers */

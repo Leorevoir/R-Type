@@ -1,6 +1,5 @@
 #pragma once
 
-#include <R-Engine/Plugins/MeshPlugin.hpp>
 #include <string>
 #include <vector>
 
@@ -19,6 +18,7 @@ struct EnemyData {
         int health;
         float speed;
         EnemyBehaviorType behavior;
+        int score_value;
 };
 
 enum class BossBehaviorType {
@@ -31,6 +31,7 @@ struct BossData {
         std::string model_path;
         int max_health;
         BossBehaviorType behavior;
+        int score_value;
 };
 
 struct LevelData {
@@ -52,8 +53,7 @@ struct CurrentLevel {
 };
 
 /* ================================================================================= */
-/* Resources */
-/* Resources are global data structures. */
+/* Level Progression Timers */
 /* ================================================================================= */
 
 struct EnemySpawnTimer {
@@ -68,14 +68,4 @@ struct BossSpawnTimer {
 struct BossShootTimer {
         float time_left = 2.0f;
         static constexpr float FIRE_RATE = 2.0f;
-};
-
-struct PlayerBulletAssets {
-        r::MeshHandle laser_beam_handle = r::MeshInvalidHandle;
-        r::MeshHandle force_missile = r::MeshInvalidHandle;
-};
-
-struct BossBulletAssets {
-        r::MeshHandle big_missile = r::MeshInvalidHandle;
-        r::MeshHandle small_missile = r::MeshInvalidHandle;
 };
