@@ -41,6 +41,8 @@ struct LivesText {
 
 struct SettingsTitleText {
 };
+struct SettingsContentArea {
+};
 struct VideoSettingsRoot {
 };
 struct AudioSettingsRoot {

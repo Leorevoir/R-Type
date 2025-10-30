@@ -18,72 +18,134 @@
 #include <resources/ui_state.hpp>
 #include <resources/video_settings.hpp>
 #include <state/game_state.hpp>
+#include <state/settings_state.hpp>
 #include <string>
 
-static void create_video_settings_content(r::ecs::ChildBuilder &parent)
+static void build_video_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<SettingsContentArea>> query)
 {
-    parent
-        .spawn(VideoSettingsRoot{}, r::UiNode{},
-            r::Style{
-                .width_pct = 100.f,
-                .height_pct = 100.f,
-                .direction = r::LayoutDirection::Column,
-                .justify = r::JustifyContent::Start,
-                .align = r::AlignItems::Start,
-                .gap = 10.f,
-            },
-            r::ComputedLayout{}, r::Visibility::Visible)
-        .with_children([&](r::ecs::ChildBuilder &content) {
-            auto create_row = [&](const std::string &label, auto component_tag, const std::string &initial_value) {
-                /* Each row is a container */
-                content
-                    .spawn(r::UiNode{},
-                        r::Style{.height = 40.f,
-                            .width_pct = 100.f,
-                            .direction = r::LayoutDirection::Row,
-                            .justify = r::JustifyContent::Start,
-                            .align = r::AlignItems::Center},
-                        r::ComputedLayout{}, r::Visibility::Visible)
-                    .with_children([&](r::ecs::ChildBuilder &row) {
-                        /* Left column: Label (takes up 60% of the row's width) */
-                        row.spawn(r::UiNode{}, r::Style{.width_pct = 60.f, .align = r::AlignItems::Center},
-                            r::UiText{.content = label, .color = r::Color{200, 230, 235, 255}}, r::ComputedLayout{},
-                            r::Visibility::Visible);
+    if (query.size() == 0)
+        return;
+    auto content_area_entity = query.begin().entity();
 
-                        /* Right column: Button (takes up 40% of the row's width) */
-                        row.spawn(component_tag, r::UiNode{}, r::UiButton{},
-                            r::Style{
-                                .height = 35.f,
-                                .width_pct = 40.f,
-                                .justify = r::JustifyContent::Center,
-                                .align = r::AlignItems::Center,
-                            },
-                            r::UiText{.content = initial_value}, r::ComputedLayout{}, r::Visibility::Visible);
-                    });
-            };
+    cmds.entity(content_area_entity).with_children([&](r::ecs::ChildBuilder &parent) {
+        parent
+            .spawn(VideoSettingsRoot{}, r::UiNode{},
+                r::Style{
+                    .width_pct = 100.f,
+                    .height_pct = 100.f,
+                    .direction = r::LayoutDirection::Column,
+                    .justify = r::JustifyContent::Start,
+                    .align = r::AlignItems::Start,
+                    .gap = 10.f,
+                },
+                r::ComputedLayout{}, r::Visibility::Visible)
+            .with_children([&](r::ecs::ChildBuilder &content) {
+                auto create_row = [&](const std::string &label, auto component_tag, const std::string &initial_value) {
+                    /* Each row is a container */
+                    content
+                        .spawn(r::UiNode{},
+                            r::Style{.height = 40.f,
+                                .width_pct = 100.f,
+                                .direction = r::LayoutDirection::Row,
+                                .justify = r::JustifyContent::Start,
+                                .align = r::AlignItems::Center},
+                            r::ComputedLayout{}, r::Visibility::Visible)
+                        .with_children([&](r::ecs::ChildBuilder &row) {
+                            /* Left column: Label (takes up 60% of the row's width) */
+                            row.spawn(r::UiNode{}, r::Style{.width_pct = 60.f, .align = r::AlignItems::Center},
+                                r::UiText{.content = label, .color = r::Color{200, 230, 235, 255}}, r::ComputedLayout{},
+                                r::Visibility::Visible);
 
-            create_row("Display Mode", DisplayModeDropdown{}, "Windowed");
-            create_row("Resolution", ResolutionDropdown{}, "1280x720");
-            create_row("V-Sync", VSyncToggle{}, "On");
-            create_row("Framerate Limit", FramerateLimitSlider{}, "60");
-            create_row("Post-Processing", PostProcessingToggle{}, "Off");
-        });
+                            /* Right column: Button (takes up 40% of the row's width) */
+                            row.spawn(component_tag, r::UiNode{}, r::UiButton{},
+                                r::Style{
+                                    .height = 35.f,
+                                    .width_pct = 40.f,
+                                    .justify = r::JustifyContent::Center,
+                                    .align = r::AlignItems::Center,
+                                },
+                                r::UiText{.content = initial_value}, r::ComputedLayout{}, r::Visibility::Visible);
+                        });
+                };
+
+                create_row("Display Mode", DisplayModeDropdown{}, "Windowed");
+                create_row("Resolution", ResolutionDropdown{}, "1280x720");
+                create_row("V-Sync", VSyncToggle{}, "On");
+                create_row("Framerate Limit", FramerateLimitSlider{}, "60");
+                create_row("Post-Processing", PostProcessingToggle{}, "Off");
+            });
+    });
 }
 
-static void create_audio_settings_content(r::ecs::ChildBuilder &parent)
+static void cleanup_video_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<VideoSettingsRoot>> query)
 {
-    parent.spawn(AudioSettingsRoot{}, r::UiNode{}, r::UiText{.content = "Audio Settings Here"}, r::Style{}, r::ComputedLayout{},
-        r::Visibility::Hidden);
+    for (auto it = query.begin(); it != query.end(); ++it) {
+        cmds.despawn(it.entity());
+    }
 }
-static void create_controls_settings_content(r::ecs::ChildBuilder &parent)
+
+static void build_audio_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<SettingsContentArea>> query)
 {
-    parent.spawn(ControlsSettingsRoot{}, r::UiNode{}, r::UiText{.content = "Controls Settings Here"}, r::Style{}, r::ComputedLayout{},
-        r::Visibility::Hidden);
+    if (query.size() == 0)
+        return;
+    auto content_area_entity = query.begin().entity();
+    cmds.entity(content_area_entity).with_children([&](r::ecs::ChildBuilder &parent) {
+        parent.spawn(AudioSettingsRoot{}, r::UiNode{}, r::UiText{.content = "Audio Settings Here"}, r::Style{}, r::ComputedLayout{},
+            r::Visibility::Visible);
+    });
 }
-static void create_accessibility_settings_content(r::ecs::ChildBuilder &parent)
+
+static void cleanup_audio_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<AudioSettingsRoot>> query)
 {
-    parent.spawn(AccessibilitySettingsRoot{}, r::UiNode{}, r::UiText{.content = "Accessibility Settings Here"}, r::Style{},
-        r::ComputedLayout{}, r::Visibility::Hidden);
+    for (auto it = query.begin(); it != query.end(); ++it) {
+        cmds.despawn(it.entity());
+    }
+}
+
+static void build_controls_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<SettingsContentArea>> query)
+{
+    if (query.size() == 0)
+        return;
+    auto content_area_entity = query.begin().entity();
+    cmds.entity(content_area_entity).with_children([&](r::ecs::ChildBuilder &parent) {
+        parent.spawn(ControlsSettingsRoot{}, r::UiNode{}, r::UiText{.content = "Controls Settings Here"}, r::Style{}, r::ComputedLayout{},
+            r::Visibility::Visible);
+    });
+}
+
+static void cleanup_controls_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<ControlsSettingsRoot>> query)
+{
+    for (auto it = query.begin(); it != query.end(); ++it) {
+        cmds.despawn(it.entity());
+    }
+}
+
+static void build_accessibility_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<SettingsContentArea>> query)
+{
+    if (query.size() == 0)
+        return;
+    auto content_area_entity = query.begin().entity();
+    cmds.entity(content_area_entity).with_children([&](r::ecs::ChildBuilder &parent) {
+        parent.spawn(AccessibilitySettingsRoot{}, r::UiNode{}, r::UiText{.content = "Accessibility Settings Here"}, r::Style{},
+            r::ComputedLayout{}, r::Visibility::Visible);
+    });
+}
+
+static void cleanup_accessibility_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<AccessibilitySettingsRoot>> query)
+{
+    for (auto it = query.begin(); it != query.end(); ++it) {
+        cmds.despawn(it.entity());
+    }
+}
+
+static void enter_settings_menu_system(r::ecs::ResMut<r::NextState<SettingsState>> next_settings_state)
+{
+    next_settings_state.ptr->set(SettingsState::Video);
+}
+
+static void exit_settings_menu_system(r::ecs::ResMut<r::NextState<SettingsState>> next_settings_state)
+{
+    next_settings_state.ptr->set(SettingsState::Hidden);
 }
 
 static void build_settings_menu(r::ecs::Commands &cmds)
@@ -169,21 +231,15 @@ static void build_settings_menu(r::ecs::Commands &cmds)
                         r::UiText{.content = std::string("Video"), .font_size = 28, .color = r::Color{200, 230, 235, 255}, .font_path = {}},
                         r::ComputedLayout{}, r::Visibility::Visible);
                     /* Content area that holds the specific settings panels */
-                    content
-                        .spawn(r::UiNode{},
-                            r::Style{
-                                .width = 700.f,
-                                .height_pct = 100.f,
-                                .background = r::Color{12, 12, 14, 255},
-                                .padding = 12.f,
-                            },
-                            r::ComputedLayout{}, r::Visibility::Visible)
-                        .with_children([&](r::ecs::ChildBuilder &settings_area) {
-                            create_video_settings_content(settings_area);
-                            create_audio_settings_content(settings_area);
-                            create_controls_settings_content(settings_area);
-                            create_accessibility_settings_content(settings_area);
-                        });
+                    content.spawn(SettingsContentArea{}, r::UiNode{},
+                        r::Style{
+                            .width = 700.f,
+                            .height_pct = 100.f,
+                            .background = r::Color{12, 12, 14, 255},
+                            .padding = 12.f,
+                        },
+                        r::ComputedLayout{}, r::Visibility::Visible);
+                    /* Note: The content of this area is now spawned by the SettingsState OnEnter systems */
                 });
         });
 }
@@ -196,12 +252,8 @@ static void cleanup_settings_menu(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::
 }
 
 static void settings_sidebar_handler(r::ecs::EventReader<r::UiClick> click_reader, r::ecs::Query<r::ecs::Ref<SettingsMenuButton>> buttons,
-    r::ecs::Query<r::ecs::Mut<r::UiText>, r::ecs::With<SettingsTitleText>> title,
-    r::ecs::Query<r::ecs::Mut<r::Visibility>, r::ecs::With<VideoSettingsRoot>> video_view,
-    r::ecs::Query<r::ecs::Mut<r::Visibility>, r::ecs::With<AudioSettingsRoot>> audio_view,
-    r::ecs::Query<r::ecs::Mut<r::Visibility>, r::ecs::With<ControlsSettingsRoot>> controls_view,
-    r::ecs::Query<r::ecs::Mut<r::Visibility>, r::ecs::With<AccessibilitySettingsRoot>> accessibility_view,
-    r::ecs::ResMut<r::NextState<GameState>> next_state, r::ecs::Res<PreviousGameState> prev_game_state)
+    r::ecs::Query<r::ecs::Mut<r::UiText>, r::ecs::With<SettingsTitleText>> title, r::ecs::ResMut<r::NextState<GameState>> next_game_state,
+    r::ecs::ResMut<r::NextState<SettingsState>> next_settings_state, r::ecs::Res<PreviousGameState> prev_game_state)
 {
     for (const auto &click : click_reader) {
         if (click.entity == r::ecs::NULL_ENTITY)
@@ -214,48 +266,26 @@ static void settings_sidebar_handler(r::ecs::EventReader<r::UiClick> click_reade
             auto [btn] = *it;
             std::string new_label;
 
-            /* Hide all views first */
-            for (auto [vis, _] : video_view) {
-                *vis.ptr = r::Visibility::Hidden;
-            }
-            for (auto [vis, _] : audio_view) {
-                *vis.ptr = r::Visibility::Hidden;
-            }
-            for (auto [vis, _] : controls_view) {
-                *vis.ptr = r::Visibility::Hidden;
-            }
-            for (auto [vis, _] : accessibility_view) {
-                *vis.ptr = r::Visibility::Hidden;
-            }
-
             switch (btn.ptr->action) {
                 case SettingsMenuButton::Action::Video:
                     new_label = "Video";
-                    for (auto [vis, _] : video_view) {
-                        *vis.ptr = r::Visibility::Visible;
-                    }
+                    next_settings_state.ptr->set(SettingsState::Video);
                     break;
                 case SettingsMenuButton::Action::Audio:
                     new_label = "Audio";
-                    for (auto [vis, _] : audio_view) {
-                        *vis.ptr = r::Visibility::Visible;
-                    }
+                    next_settings_state.ptr->set(SettingsState::Audio);
                     break;
                 case SettingsMenuButton::Action::Controls:
                     new_label = "Controls";
-                    for (auto [vis, _] : controls_view) {
-                        *vis.ptr = r::Visibility::Visible;
-                    }
+                    next_settings_state.ptr->set(SettingsState::Controls);
                     break;
                 case SettingsMenuButton::Action::Accessibility:
                     new_label = "Accessibility";
-                    for (auto [vis, _] : accessibility_view) {
-                        *vis.ptr = r::Visibility::Visible;
-                    }
+                    next_settings_state.ptr->set(SettingsState::Accessibility);
                     break;
                 case SettingsMenuButton::Action::Back:
                     r::Logger::info("Settings: Back button clicked. Returning to previous state.");
-                    next_state.ptr->set(prev_game_state.ptr->state);
+                    next_game_state.ptr->set(prev_game_state.ptr->state);
                     return;
                 default:
                     break;
@@ -403,17 +433,47 @@ static void apply_video_settings(r::ecs::Res<VideoSettings> settings, r::ecs::Re
 void SettingsPlugin::build(r::Application &app)
 {
     app.insert_resource(VideoSettings{})
+        .init_state(SettingsState::Hidden)
+
+        /* Systems for the main settings menu frame */
         .add_systems<build_settings_menu>(r::OnEnter{GameState::SettingsMenu})
         .add_systems<cleanup_settings_menu>(r::OnExit{GameState::SettingsMenu})
+
+        /* Systems to manage the SettingsState based on GameState */
+        .add_systems<enter_settings_menu_system>(r::OnEnter{GameState::SettingsMenu})
+        .add_systems<exit_settings_menu_system>(r::OnExit{GameState::SettingsMenu})
+
+        /* Systems that build/destroy the content panels based on SettingsState */
+        .add_systems<build_video_settings_panel>(r::OnEnter{SettingsState::Video})
+        .add_systems<cleanup_video_settings_panel>(r::OnExit{SettingsState::Video})
+        .add_systems<build_audio_settings_panel>(r::OnEnter{SettingsState::Audio})
+        .add_systems<cleanup_audio_settings_panel>(r::OnExit{SettingsState::Audio})
+        .add_systems<build_controls_settings_panel>(r::OnEnter{SettingsState::Controls})
+        .add_systems<cleanup_controls_settings_panel>(r::OnExit{SettingsState::Controls})
+        .add_systems<build_accessibility_settings_panel>(r::OnEnter{SettingsState::Accessibility})
+        .add_systems<cleanup_accessibility_settings_panel>(r::OnExit{SettingsState::Accessibility})
+
+        /* Apply video settings when we leave the settings menu entirely */
         .add_systems<apply_video_settings>(r::OnExit{GameState::SettingsMenu})
+
+        /* Handle sidebar clicks to change SettingsState */
         .add_systems<settings_sidebar_handler>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::SettingsMenu>>()
-        .run_if<r::run_conditions::on_event<r::UiClick>>()
+        .run_and<r::run_conditions::on_event<r::UiClick>>()
+
+        /* Handle clicks on the video settings widgets themselves */
         .add_systems<video_settings_button_handler>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::SettingsMenu>>()
-        .run_if<r::run_conditions::on_event<r::UiClick>>()
+        .run_and<r::run_conditions::in_state<SettingsState::Video>>()
+        .run_and<r::run_conditions::on_event<r::UiClick>>()
+
+        /* Sync UI text with the current settings values */
         .add_systems<sync_video_settings_ui>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::SettingsMenu>>()
+        .run_and<r::run_conditions::in_state<SettingsState::Video>>()
+
+        /* Update button disabled state based on other settings */
         .add_systems<update_resolution_button_state>(r::Schedule::UPDATE)
-        .run_if<r::run_conditions::in_state<GameState::SettingsMenu>>();
+        .run_if<r::run_conditions::in_state<GameState::SettingsMenu>>()
+        .run_and<r::run_conditions::in_state<SettingsState::Video>>();
 }
