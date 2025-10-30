@@ -41,3 +41,22 @@ struct LivesText {
 
 struct SettingsTitleText {
 };
+struct VideoSettingsRoot {
+};
+struct AudioSettingsRoot {
+};
+struct ControlsSettingsRoot {
+};
+struct AccessibilitySettingsRoot {
+};
+
+struct DisplayModeDropdown {
+};
+struct ResolutionDropdown {
+};
+struct VSyncToggle {
+};
+struct FramerateLimitSlider {
+};
+struct PostProcessingToggle {
+};
