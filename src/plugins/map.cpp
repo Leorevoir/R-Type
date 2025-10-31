@@ -1,22 +1,19 @@
+#include "plugins/map.hpp"
 #include "R-Engine/Components/Transform3d.hpp"
 #include "R-Engine/Maths/Maths.hpp"
-#include <components.hpp>
-#include <events.hpp>
-#include <plugins/map.hpp>
-#include <resources.hpp>
-#include <state.hpp>
-
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/ECS/Command.hpp>
-#include <R-Engine/ECS/Event.hpp>
 #include <R-Engine/ECS/Query.hpp>
 #include <R-Engine/ECS/RunConditions.hpp>
 #include <R-Engine/Plugins/MeshPlugin.hpp>
 #include <R-Engine/Plugins/RenderPlugin.hpp>
 #include <cmath>
 #include <cstdlib>
-#include <utility>
+
+#include <components/map.hpp>
+#include <resources/level.hpp>
+#include <state/game_state.hpp>
 
 static void spawn_scenery_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> meshes, r::ecs::Res<r::Camera3d> camera,
     r::ecs::Res<CurrentLevel> current_level, r::ecs::Res<GameLevels> game_levels)
@@ -49,8 +46,7 @@ static void spawn_scenery_system(r::ecs::Commands &commands, r::ecs::ResMut<r::M
             const float Y_VARIATION = 3.0f;
             float random_y = MIN_BUILDING_Y - Y_VARIATION * (static_cast<float>(rand()) / static_cast<float>(RAND_MAX));
 
-            commands.spawn(BlackBuilding{}, ScrollingScenery{},
-                r::Transform3d{.position = {current_x, random_y, -10.0f}, .scale = {2.0f, 2.0f, 2.0f}},
+            commands.spawn(ScrollingScenery{}, r::Transform3d{.position = {current_x, random_y, -10.0f}, .scale = {2.0f, 2.0f, 2.0f}},
                 r::Mesh3d{.id = building_handle,
                     .color = r::Color{255, 255, 255, 255},
                     .rotation_offset = {0.0f, static_cast<float>(M_PI) / 2.0f, 0.0f}});
