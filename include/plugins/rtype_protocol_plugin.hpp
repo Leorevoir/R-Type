@@ -1,15 +1,20 @@
 #pragma once
+
+#include "R-Engine/Application.hpp"
+#include "R-Engine/Plugins/Plugin.hpp"
+#include "R-Engine/ECS/EventReader.hpp"
+#include "R-Engine/ECS/EventWriter.hpp"
+#include "R-Engine/Plugins/NetworkPlugin.hpp"
+#include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
-#include <cstdint>
-#include "../../external/R-Engine/include/R-Engine/Plugins/NetworkPlugin.hpp"
 
-namespace rtype {
-namespace protocol {
+namespace rtype::protocol {
 
-
-/* R-Type protocol command enum */
+/**
+ * @brief R-Type protocol commands
+ */
 enum class RTypeCommand : uint8_t {
     CMD_INPUT = 1,
     CMD_SNAPSHOT = 2,
@@ -40,7 +45,9 @@ enum class RTypeCommand : uint8_t {
     CMD_SPECTATE = 27
 };
 
-/* R-Type protocol flags enum */
+/**
+ * @brief R-Type protocol flags
+ */
 enum class RTypeFlags : uint8_t {
     F_CONN = 1 << 0,
     F_RELIABLE = 1 << 1,
@@ -51,7 +58,9 @@ enum class RTypeFlags : uint8_t {
     F_COMPRESSED = 1 << 6
 };
 
-/* R-Type protocol channels enum */
+/**
+ * @brief R-Type protocol channels
+ */
 enum class RTypeChannel : uint8_t {
     C_UU = 0b00,
     C_UO = 0b01,
@@ -59,16 +68,20 @@ enum class RTypeChannel : uint8_t {
     C_RO = 0b11
 };
 
-/* Standardized input enum */
+/**
+ * @brief Standardized inputs for R-Type protocol
+ */
 enum class RTypeInput : uint8_t {
     I_FWD = 1
     // Ajouter d'autres inputs si besoin
 };
 
-/* R-Type UDP header structure */
+/**
+ * @brief R-Type UDP header structure
+ */
 struct RTypeHeader {
-    uint16_t magic;      /* Magic number: 0x4254 */
-    uint8_t version;     /* Protocol version: 0b1 */
+    uint16_t magic; ///< Magic number: 0x4254
+    uint8_t version; ///< Protocol version: 0b1
     uint8_t flags;
     uint32_t seq;
     uint32_t ackBase;
@@ -79,13 +92,17 @@ struct RTypeHeader {
     uint8_t command;
 };
 
-/* R-Type packet structure */
+/**
+ * @brief R-Type UDP packet structure
+ */
 struct RTypePacket {
     RTypeHeader header;
     std::vector<uint8_t> payload;
 };
 
-/* TCP packet structure for Gateway */
+/**
+ * @brief TCP commands for R-Type Gateway
+ */
 enum class RTypeTCPMessage : uint8_t {
     GCMD_JOIN = 1,
     GCMD_JOIN_KO = 2,
@@ -99,90 +116,64 @@ enum class RTypeTCPMessage : uint8_t {
     GCMD_GID = 24
 };
 
-enum class RTypeGameType : uint8_t {
-    G_RTYPE = 1
-};
+/**
+ * @brief R-Type game types
+ */
+enum class RTypeGameType : uint8_t { G_RTYPE = 1 };
 
+/**
+ * @brief TCP packet structure for R-Type Gateway
+ */
 struct RTypeTCPPacket {
-    uint16_t magic;      /* Magic number: 0x4257 */
-    uint8_t version;     /* Protocol version: 0b1 */
+    uint16_t magic; ///< Magic number: 0x4257
+    uint8_t version; ///< Protocol version: 0b1
     uint8_t flags;
     RTypeTCPMessage type;
     std::vector<uint8_t> payload;
 };
 
-/* Methods for each protocol interaction */
-class RTypeProtocolePlugin : public rtype::network::NetworkPlugin {
-public:
-    RTypeProtocolePlugin();
-    ~RTypeProtocolePlugin();
-
-    /* Connection and Authentication */
-    bool sendJoin(uint32_t id, uint8_t nonce, uint8_t version);
-    bool sendChallenge(uint64_t timestamp, const std::vector<uint8_t>& cookie);
-    bool sendAuth(uint8_t nonce, const std::vector<uint8_t>& cookie);
-    bool sendAuthOk(uint32_t id, const std::vector<uint8_t>& sessionKey);
-    bool sendKick(const std::string& message);
-
-    /* Gameplay */
-    bool sendInput(RTypeInput type, uint8_t value);
-    bool sendSnapshot(uint32_t seq);
-    bool sendPlayerStats(int hp, int score, int powerups);
-    bool sendPlayerDeath();
-    bool sendPlayerScore(int score);
-
-    /* Communication and Synchronization */
-    bool sendChat(const std::string& msg);
-    bool sendPing();
-    bool sendPong();
-    bool sendAck(uint32_t seq);
-    bool sendResync();
-    bool sendFragment(uint32_t seq, const std::vector<uint8_t>& payload);
-
-    /* Game management */
-    bool sendGameEnd(uint32_t gameId);
-    bool sendLeave();
-    bool sendReady();
-    bool sendNotReady();
-    bool sendCreate(RTypeGameType type);
-    bool sendCreateKo();
-    bool sendJoinKo();
-
-    /* Miscellaneous */
-    bool sendPause();
-    bool sendResume();
-    bool sendLeaderboard();
-    bool sendSpectate();
-
-    /* Generic packet reception */
-    bool receivePacket(RTypePacket& packet);
-
-private:
-    std::string serverAddress;
-    uint16_t serverPort;
+/**
+ * @brief Event for sending R-Type packet
+ */
+struct SendRTypePacket {
+    RTypePacket packet;
 };
 
-class RTypeProtocolePlugin : public rtype::network::NetworkPlugin {
-public:
-    RTypeProtocolePlugin();
-    ~RTypeProtocolePlugin();
-
-    bool connectToServer(const std::string &address, uint16_t port);
-    void disconnect();
-    bool sendPacket(const RTypePacket &packet);
-    bool receivePacket(RTypePacket &packet);
-
-    /* Game-specific methods */
-    bool sendPlayerConnect(const std::string &playerName);
-    bool sendPlayerStats(int hp, int score);
-    bool sendPlayerDeath();
-    bool sendPlayerScore(int score);
-    // ...
-
-private:
-    std::string serverAddress;
-    uint16_t serverPort;
+/**
+ * @brief Event for receiving R-Type packet
+ */
+struct ReceivedRTypePacket {
+    RTypePacket packet;
 };
 
-} // namespace protocol
-} // namespace rtype
+/**
+ * @brief R-Type protocol plugin (UDP)
+ */
+class RTypeProtocolPlugin final : public r::Plugin {
+public:
+    RTypeProtocolPlugin() noexcept = default;
+    ~RTypeProtocolPlugin() override = default;
+
+    /**
+     * @brief Adds R-Type protocol systems and events to the application.
+     * @param app Application to configure
+     */
+    void build(r::Application &app) override;
+};
+
+/**
+ * @brief System for sending R-Type packets via the NetworkPlugin.
+ */
+void send_rtype_packet_system(
+    r::ecs::EventReader<SendRTypePacket> send_events,
+    r::ecs::EventWriter<r::net::NetworkSendEvent> network_send_events);
+
+/**
+ * @brief System for receiving R-Type packets from the NetworkPlugin.
+ */
+void receive_rtype_packet_system(
+    r::ecs::EventReader<r::net::NetworkMessageEvent> network_message_events,
+    r::ecs::EventWriter<ReceivedRTypePacket> received_events);
+
+} // namespace rtype::protocol
+

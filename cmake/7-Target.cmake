@@ -31,3 +31,17 @@ endif()
 
 apply_compiler_warnings(${R_TYPE_TARGET_NAME})
 apply_linker_optimizations(${R_TYPE_TARGET_NAME})
+
+#######################################
+
+add_executable(r-type-client src/client/main.cpp)
+target_include_directories(r-type-client PRIVATE ${INCLUDE_R_TYPE})
+if(TARGET r-engine)
+    target_link_libraries(r-type-client PRIVATE r-engine)
+endif()
+
+add_executable(r-type-test src/client/test_main.cpp)
+target_include_directories(r-type-test PRIVATE ${INCLUDE_R_TYPE})
+if(TARGET r-engine)
+    target_link_libraries(r-type-test PRIVATE r-engine)
+endif()
