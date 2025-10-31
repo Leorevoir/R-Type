@@ -2,8 +2,6 @@
 
 #include "R-Engine/Application.hpp"
 #include "R-Engine/Plugins/Plugin.hpp"
-#include "R-Engine/ECS/EventReader.hpp"
-#include "R-Engine/ECS/EventWriter.hpp"
 #include "R-Engine/Plugins/NetworkPlugin.hpp"
 #include <cstdint>
 #include <memory>

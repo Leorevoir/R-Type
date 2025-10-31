@@ -109,8 +109,8 @@ void receive_rtype_packet_system(
  * @param app Application to configure
  */
 void RTypeProtocolPlugin::build(r::Application &app) {
-    app.add_systems(r::Schedule::UPDATE, send_rtype_packet_system);
-    app.add_systems(r::Schedule::UPDATE, receive_rtype_packet_system);
+    app.add_systems<send_rtype_packet_system>(r::Schedule::UPDATE);
+    app.add_systems<receive_rtype_packet_system>(r::Schedule::UPDATE);
     app.add_events<SendRTypePacket, ReceivedRTypePacket>();
 }
 
