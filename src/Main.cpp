@@ -1,12 +1,14 @@
-#include "plugins/enemy.hpp"
 #include <plugins/combat.hpp>
 #include <plugins/debug.hpp>
+#include <plugins/enemy.hpp>
 #include <plugins/force.hpp>
 #include <plugins/game_state.hpp>
 #include <plugins/gameplay.hpp>
 #include <plugins/map.hpp>
 #include <plugins/menu.hpp>
+#include <plugins/pause.hpp>
 #include <plugins/player.hpp>
+#include <plugins/settings.hpp>
 
 #include <events/game_events.hpp>
 #include <resources/level.hpp>
@@ -16,6 +18,7 @@
 #include <R-Engine/Core/Backend.hpp>
 #include <R-Engine/Plugins/DefaultPlugins.hpp>
 #include <R-Engine/Plugins/InputPlugin.hpp>
+#include <R-Engine/Plugins/PostProcessingPlugin.hpp>
 #include <R-Engine/Plugins/RenderPlugin.hpp>
 #include <R-Engine/Plugins/WindowPlugin.hpp>
 
@@ -23,10 +26,19 @@
 #include <ctime>
 
 /**
- * @brief (STARTUP) Sets up the game world.
- * @details This system runs once when entering the game. It configures the camera
- * and binds input actions.
- */
+* @brief Disables the default ESC key behavior for closing the window.
+* @details This allows the game to handle ESC for pausing without quitting.
+*/
+static void disable_escape_key_system()
+{
+    SetExitKey(KEY_NULL);
+}
+
+/**
+* @brief (STARTUP) Sets up the game world.
+* @details This system runs once when entering the game. It configures the camera
+* and binds input actions.
+*/
 static void setup_core_game_system(r::ecs::ResMut<r::Camera3d> camera, r::ecs::ResMut<r::InputMap> input_map)
 {
     /* --- Configure Camera --- */
@@ -78,10 +90,13 @@ static void setup_levels_system(r::ecs::Commands &commands)
                         150,
                     },
                 },
-            .boss_data = {.model_path = "assets/models/Boss.glb",
-                .max_health = 500,
-                .behavior = BossBehaviorType::VerticalPatrol,
-                .score_value = 5000},
+            .boss_data =
+                {
+                    .model_path = "assets/models/Boss.glb",
+                    .max_health = 500,
+                    .behavior = BossBehaviorType::VerticalPatrol,
+                    .score_value = 5000,
+                },
         },
         {
             .id = 2,
@@ -149,11 +164,15 @@ int main()
     srand(static_cast<unsigned int>(time(nullptr)));
 
     r::Application{}
-        .add_plugins(r::DefaultPlugins{}.set(r::WindowPlugin{r::WindowPluginConfig{
-            .size = {1280, 720},
-            .title = "R-Type",
-            .cursor = r::WindowCursorState::Visible,
-        }}))
+        .add_plugins(r::DefaultPlugins{}
+                .set(r::WindowPlugin{r::WindowPluginConfig{
+                    .size = {1280, 720},
+                    .title = "R-Type",
+                    .cursor = r::WindowCursorState::Visible,
+                }})
+                .set(r::PostProcessingPlugin{r::PostProcessingPluginConfig{
+                    .engine_assets_prefix = "external/R-Engine/assets/",
+                }}))
 
         /* Register all custom game events */
         .add_events<PlayerDiedEvent, BossTimeReachedEvent, BossDefeatedEvent, EntityDiedEvent>()
@@ -161,6 +180,8 @@ int main()
         /* Add all our custom game plugins */
         .add_plugins(GameStatePlugin{})
         .add_plugins(MenuPlugin{})
+        .add_plugins(PausePlugin{})
+        .add_plugins(SettingsPlugin{})
         .add_plugins(MapPlugin{})
         .add_plugins(PlayerPlugin{})
         .add_plugins(ForcePlugin{})
@@ -170,6 +191,7 @@ int main()
         //.add_plugins(DebugPlugin{})
 
         /* Add the remaining core setup */
+        .add_systems<disable_escape_key_system>(r::Schedule::STARTUP)
         .add_systems<setup_core_game_system>(r::Schedule::STARTUP)
         .add_systems<setup_levels_system>(r::Schedule::STARTUP)
 
