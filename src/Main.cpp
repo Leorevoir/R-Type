@@ -57,6 +57,11 @@ static void setup_core_game_system(r::ecs::ResMut<r::Camera3d> camera, r::ecs::R
     input_map.ptr->bindAction("Fire", r::KEYBOARD, KEY_SPACE);
     input_map.ptr->bindAction("Force", r::KEYBOARD, KEY_LEFT_SHIFT);
     input_map.ptr->bindAction("Pause", r::KEYBOARD, KEY_ESCAPE);
+
+    /* Gamepad Bindings */
+    input_map.ptr->bindAction("Fire", r::GAMEPAD, GAMEPAD_BUTTON_RIGHT_FACE_DOWN);  ///< 'A' on Xbox, 'X' on PS
+    input_map.ptr->bindAction("Force", r::GAMEPAD, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);///< 'B' on Xbox, 'Circle' on PS
+    input_map.ptr->bindAction("Pause", r::GAMEPAD, GAMEPAD_BUTTON_MIDDLE_RIGHT);    ///< 'Start' button
 }
 
 static void setup_levels_system(r::ecs::Commands &commands)

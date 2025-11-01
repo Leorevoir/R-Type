@@ -128,6 +128,13 @@ static void handle_player_movement(r::ecs::Mut<Velocity> &velocity, r::ecs::Res<
     if (input_map.ptr->isActionPressed("MoveRight", *user_input.ptr))
         direction.x += 1.0f;
 
+    r::Vec2f axis_movement = user_input.ptr->getGamepadAxis(0);
+    float deadzone = 0.2f;
+    if (std::abs(axis_movement.x) > deadzone || std::abs(axis_movement.y) > deadzone) {
+        direction.x = axis_movement.x;
+        direction.y = -axis_movement.y;
+    }
+
     velocity.ptr->value = (direction.length() > 0.0f) ? direction.normalize() * PLAYER_SPEED : r::Vec3f{0.0f, 0.0f, 0.0f};
 }
 
