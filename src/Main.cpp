@@ -10,6 +10,7 @@
 #include <plugins/player.hpp>
 #include <plugins/settings.hpp>
 
+#include <events/debug.hpp>
 #include <events/game_events.hpp>
 #include <resources/level.hpp>
 #include <state/game_state.hpp>
@@ -170,7 +171,7 @@ int main()
                 }}))
 
         /* Register all custom game events */
-        .add_events<PlayerDiedEvent, BossTimeReachedEvent, BossDefeatedEvent, EntityDiedEvent>()
+        .add_events<PlayerDiedEvent, BossTimeReachedEvent, BossDefeatedEvent, EntityDiedEvent, DebugSwitchLevelEvent>()
 
         /* Add all our custom game plugins */
         .add_plugins(GameStatePlugin{})
@@ -183,7 +184,7 @@ int main()
         .add_plugins(EnemyPlugin{})
         .add_plugins(GameplayPlugin{})
         .add_plugins(CombatPlugin{})
-        //.add_plugins(DebugPlugin{})
+        .add_plugins(DebugPlugin{})
 
         /* Add the remaining core setup */
         .add_systems<disable_escape_key_system>(r::Schedule::STARTUP)

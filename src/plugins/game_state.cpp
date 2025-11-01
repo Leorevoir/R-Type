@@ -6,6 +6,7 @@
 #include <string>
 
 #include <components/player.hpp>
+#include <events/debug.hpp>
 #include <events/game_events.hpp>
 #include <resources/game_state.hpp>
 #include <resources/level.hpp>
@@ -53,6 +54,20 @@ static void handle_boss_defeated_system(r::ecs::ResMut<r::NextState<GameState>> 
     }
 }
 
+static void handle_debug_level_switch(r::ecs::EventReader<DebugSwitchLevelEvent> reader, r::ecs::ResMut<CurrentLevel> current_level,
+    r::ecs::Res<GameLevels> game_levels, r::ecs::ResMut<r::NextState<GameState>> next_state)
+{
+    for (const auto &event : reader) {
+        if (event.level_index >= 0 && static_cast<size_t>(event.level_index) < game_levels.ptr->levels.size()) {
+            r::Logger::info("[DEBUG] Switching to level " + std::to_string(event.level_index + 1));
+            current_level.ptr->index = event.level_index;
+            next_state.ptr->set(GameState::EnemiesBattle);
+        } else {
+            r::Logger::warn("[DEBUG] Invalid level index requested: " + std::to_string(event.level_index));
+        }
+    }
+}
+
 static void reset_player_lives_system(r::ecs::ResMut<PlayerLives> lives)
 {
     lives.ptr->count = 3;
@@ -95,6 +110,9 @@ void GameStatePlugin::build(r::Application &app)
 
         .add_systems<handle_boss_defeated_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::on_event<BossDefeatedEvent>>()
+
+        .add_systems<handle_debug_level_switch>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::on_event<DebugSwitchLevelEvent>>()
 
         .add_systems<extra_life_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
