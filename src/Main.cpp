@@ -108,7 +108,7 @@ static void setup_levels_system(r::ecs::Commands &commands)
             .enemy_types =
                 {
                     {
-                        "assets/models/enemy.glb",
+                        "assets/models/enemy_2.glb",
                         2,
                         3.0f,
                         EnemyBehaviorType::SineWave,
@@ -117,7 +117,7 @@ static void setup_levels_system(r::ecs::Commands &commands)
                 },
             .boss_data =
                 {
-                    .model_path = "assets/models/Boss.glb",
+                    .model_path = "assets/models/boss_2.glb",
                     .max_health = 750,
                     .behavior = BossBehaviorType::HomingAttack,
                     .score_value = 7500,
