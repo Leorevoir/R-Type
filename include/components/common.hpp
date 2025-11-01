@@ -32,3 +32,12 @@ struct Health {
 struct ScoreValue {
         int points = 0;
 };
+
+/**
+ * @brief When added to an entity, this component will cause it to be despawned
+ * after a specified duration.
+ * @details The timed_despawn_system in CombatPlugin handles the countdown and despawning.
+ */
+struct TimedDespawn {
+        float timer;
+};

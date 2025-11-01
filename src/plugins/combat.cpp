@@ -1,6 +1,7 @@
 #include "plugins/combat.hpp"
 #include "R-Engine/Components/Transform3d.hpp"
 #include <R-Engine/Application.hpp>
+#include <R-Engine/Core/FrameTime.hpp>
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/Core/States.hpp>
 #include <R-Engine/ECS/Command.hpp>
@@ -260,6 +261,18 @@ static void despawn_offscreen_system(r::ecs::Commands &commands,
     }
 }
 
+static void timed_despawn_system(r::ecs::Commands &commands, r::ecs::Res<r::core::FrameTime> time,
+    r::ecs::Query<r::ecs::Mut<TimedDespawn>> query)
+{
+    for (auto it = query.begin(); it != query.end(); ++it) {
+        auto [despawn_timer] = *it;
+        despawn_timer.ptr->timer -= time.ptr->delta_time;
+        if (despawn_timer.ptr->timer <= 0.0f) {
+            commands.despawn(it.entity());
+        }
+    }
+}
+
 template<typename T>
 static void despawn_all_entities_with(r::ecs::Commands &commands, r::ecs::Query<r::ecs::With<T>> &query)
 {
@@ -298,6 +311,7 @@ void CombatPlugin::build(r::Application &app)
         .run_unless<run_conditions::is_resuming_from_pause>()
 
         .add_systems<despawn_offscreen_system>(r::Schedule::UPDATE)
+        .add_systems<timed_despawn_system>(r::Schedule::UPDATE)
 
         /* New event handler for despawning. Only runs when events are present. */
         .add_systems<handle_entity_death>(r::Schedule::UPDATE)
