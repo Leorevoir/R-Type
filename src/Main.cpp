@@ -18,6 +18,7 @@
 #include <R-Engine/Core/Backend.hpp>
 #include <R-Engine/Plugins/DefaultPlugins.hpp>
 #include <R-Engine/Plugins/InputPlugin.hpp>
+#include <R-Engine/Plugins/PostProcessingPlugin.hpp>
 #include <R-Engine/Plugins/RenderPlugin.hpp>
 #include <R-Engine/Plugins/WindowPlugin.hpp>
 
@@ -158,11 +159,15 @@ int main()
     srand(static_cast<unsigned int>(time(nullptr)));
 
     r::Application{}
-        .add_plugins(r::DefaultPlugins{}.set(r::WindowPlugin{r::WindowPluginConfig{
-            .size = {1280, 720},
-            .title = "R-Type",
-            .cursor = r::WindowCursorState::Visible,
-        }}))
+        .add_plugins(r::DefaultPlugins{}
+                .set(r::WindowPlugin{r::WindowPluginConfig{
+                    .size = {1280, 720},
+                    .title = "R-Type",
+                    .cursor = r::WindowCursorState::Visible,
+                }})
+                .set(r::PostProcessingPlugin{r::PostProcessingPluginConfig{
+                    .engine_assets_prefix = "external/R-Engine/assets/",
+                }}))
 
         /* Register all custom game events */
         .add_events<PlayerDiedEvent, BossTimeReachedEvent, BossDefeatedEvent, EntityDiedEvent>()

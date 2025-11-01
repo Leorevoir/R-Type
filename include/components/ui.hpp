@@ -1,5 +1,7 @@
 #pragma once
 
+#include "R-Engine/Plugins/PostProcessingPlugin.hpp"
+
 struct MenuButton {
         enum class Action { None, Play, Options, Quit };
         Action action = Action::None;
@@ -61,4 +63,8 @@ struct VSyncToggle {
 struct FramerateLimitSlider {
 };
 struct PostProcessingToggle {
+};
+
+struct DaltonismButton {
+        r::PostProcessingState effect = r::PostProcessingState::Disabled;
 };

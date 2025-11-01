@@ -125,9 +125,53 @@ static void build_accessibility_settings_panel(r::ecs::Commands &cmds, r::ecs::Q
     if (query.size() == 0)
         return;
     auto content_area_entity = query.begin().entity();
+
     cmds.entity(content_area_entity).with_children([&](r::ecs::ChildBuilder &parent) {
-        parent.spawn(AccessibilitySettingsRoot{}, r::UiNode{}, r::UiText{.content = "Accessibility Settings Here"}, r::Style{},
-            r::ComputedLayout{}, r::Visibility::Visible);
+        parent
+            .spawn(AccessibilitySettingsRoot{}, r::UiNode{},
+                r::Style{
+                    .width_pct = 100.f,
+                    .height_pct = 100.f,
+                    .direction = r::LayoutDirection::Column,
+                    .justify = r::JustifyContent::Start,
+                    .align = r::AlignItems::Start,
+                    .gap = 10.f,
+                },
+                r::ComputedLayout{}, r::Visibility::Visible)
+            .with_children([&](r::ecs::ChildBuilder &content) {
+                /* Helper lambda */
+                auto create_daltonism_option_row = [&](const std::string &label, r::PostProcessingState effect) {
+                    /* 1. Create the row container node */
+                    content
+                        .spawn(r::UiNode{},
+                            r::Style{
+                                .height = 40.f,
+                                .width_pct = 100.f,
+                                .direction = r::LayoutDirection::Row,
+                                .justify = r::JustifyContent::Start,
+                                .align = r::AlignItems::Center,
+                            },
+                            r::ComputedLayout{}, r::Visibility::Visible)
+                        .with_children([&](r::ecs::ChildBuilder &row) {
+                            /* 2. Spawn the button inside the row */
+                            row.spawn(DaltonismButton{effect}, r::UiNode{}, r::UiButton{},
+                                r::Style{
+                                    .height = 35.f,
+                                    .width_pct = 80.f, /* Adjust width as needed */
+                                    .justify = r::JustifyContent::Center,
+                                    .align = r::AlignItems::Center,
+                                },
+                                r::UiText{.content = label}, /* Text is a component of the button */
+                                r::ComputedLayout{}, r::Visibility::Visible);
+                        });
+                };
+
+                /* Create rows for each mode */
+                create_daltonism_option_row("Default", r::PostProcessingState::Disabled);
+                create_daltonism_option_row("Protanopia (Red-Green)", r::PostProcessingState::Protanopia);
+                create_daltonism_option_row("Deuteranopia (Red-Green)", r::PostProcessingState::Deuteranopia);
+                create_daltonism_option_row("Tritanopia (Blue-Yellow)", r::PostProcessingState::Tritanopia);
+            });
     });
 }
 
@@ -391,16 +435,51 @@ static void video_settings_button_handler(r::ecs::EventReader<r::UiClick> click_
         auto it_pp = post_processing_q.begin();
         if (it_pp != post_processing_q.end() && it_pp.entity() == click.entity) {
             settings.ptr->post_processing_effects = !settings.ptr->post_processing_effects;
-            settings.ptr->selected_effect =
-                settings.ptr->post_processing_effects ? r::PostProcessingState::Bloom : r::PostProcessingState::Disabled;
+            r::Logger::info("Video Toggle Click: VideoSettings.post_processing_effects is now "
+                + std::string(settings.ptr->post_processing_effects ? "ON" : "OFF"));
             return;
         }
     }
 }
 
-static void apply_video_settings(r::ecs::Res<VideoSettings> settings, r::ecs::ResMut<r::WindowPluginConfig> window_config,
+static void accessibility_settings_button_handler(r::ecs::EventReader<r::UiClick> click_reader,
+    r::ecs::Query<r::ecs::Ref<DaltonismButton>> buttons, r::ecs::ResMut<VideoSettings> settings)
+{
+    for (const auto &click : click_reader) {
+        if (click.entity == r::ecs::NULL_ENTITY)
+            continue;
+
+        for (auto it = buttons.begin(); it != buttons.end(); ++it) {
+            if (it.entity() == click.entity) {
+                auto [btn] = *it;
+                settings.ptr->selected_effect = btn.ptr->effect;
+                settings.ptr->post_processing_effects = (btn.ptr->effect != r::PostProcessingState::Disabled);
+
+                r::Logger::info(
+                    "Accessibility Click: Set VideoSettings.selected_effect to " + std::to_string(static_cast<int>(btn.ptr->effect)));
+                return;
+            }
+        }
+    }
+}
+
+static void apply_live_video_settings(r::ecs::Res<VideoSettings> settings, r::ecs::ResMut<r::PostProcessingPluginConfig> pp_config)
+{
+    r::PostProcessingState desired_state =
+        settings.ptr->post_processing_effects ? settings.ptr->selected_effect : r::PostProcessingState::Disabled;
+
+    if (pp_config.ptr->state != desired_state) {
+        r::Logger::info("Applying live settings: Setting PostProcessingPluginConfig.state from "
+            + std::to_string(static_cast<int>(pp_config.ptr->state)) + " to " + std::to_string(static_cast<int>(desired_state)));
+        pp_config.ptr->state = desired_state;
+    }
+}
+
+static void apply_all_video_settings_on_exit(r::ecs::Res<VideoSettings> settings, r::ecs::ResMut<r::WindowPluginConfig> window_config,
     r::ecs::ResMut<r::PostProcessingPluginConfig> pp_config)
 {
+    r::Logger::info("Applying all final video settings on settings menu exit.");
+
     /* VSync */
     if (settings.ptr->vsync)
         window_config.ptr->settings |= r::WindowPluginSettings(FLAG_VSYNC_HINT);
@@ -425,9 +504,12 @@ static void apply_video_settings(r::ecs::Res<VideoSettings> settings, r::ecs::Re
     window_config.ptr->frame_per_second = static_cast<u32>(settings.ptr->framerate_limit);
 
     /* Post Processing */
-    pp_config.ptr->state = settings.ptr->selected_effect;
-
-    r::Logger::info("Staged video settings for application.");
+    r::PostProcessingState desired_state =
+        settings.ptr->post_processing_effects ? settings.ptr->selected_effect : r::PostProcessingState::Disabled;
+    if (pp_config.ptr->state != desired_state) {
+        r::Logger::info("Applying final PP state: " + std::to_string(static_cast<int>(desired_state)));
+        pp_config.ptr->state = desired_state;
+    }
 }
 
 void SettingsPlugin::build(r::Application &app)
@@ -453,8 +535,12 @@ void SettingsPlugin::build(r::Application &app)
         .add_systems<build_accessibility_settings_panel>(r::OnEnter{SettingsState::Accessibility})
         .add_systems<cleanup_accessibility_settings_panel>(r::OnExit{SettingsState::Accessibility})
 
-        /* Apply video settings when we leave the settings menu entirely */
-        .add_systems<apply_video_settings>(r::OnExit{GameState::SettingsMenu})
+        /* Apply ALL video settings when we leave the settings menu entirely */
+        .add_systems<apply_all_video_settings_on_exit>(r::OnExit{GameState::SettingsMenu})
+
+        /* Apply settings for live preview while in the menu */
+        .add_systems<apply_live_video_settings>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::SettingsMenu>>()
 
         /* Handle sidebar clicks to change SettingsState */
         .add_systems<settings_sidebar_handler>(r::Schedule::UPDATE)
@@ -465,6 +551,12 @@ void SettingsPlugin::build(r::Application &app)
         .add_systems<video_settings_button_handler>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::SettingsMenu>>()
         .run_and<r::run_conditions::in_state<SettingsState::Video>>()
+        .run_and<r::run_conditions::on_event<r::UiClick>>()
+
+        /* Handle clicks on the accessibility settings widgets */
+        .add_systems<accessibility_settings_button_handler>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::SettingsMenu>>()
+        .run_and<r::run_conditions::in_state<SettingsState::Accessibility>>()
         .run_and<r::run_conditions::on_event<r::UiClick>>()
 
         /* Sync UI text with the current settings values */
