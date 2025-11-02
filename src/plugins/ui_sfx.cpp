@@ -17,18 +17,8 @@ struct UiSfxHandles {
     r::AudioHandle click = r::AudioInvalidHandle;
 };
 
-// Tag to identify transient UI SFX entities we spawn so we can cleanup later
-struct UiSfxTag {
-};
-
-struct UiSfxBorn {
-    std::uint64_t frame = 0;
-};
-
-// Simple per-frame counter so we can keep spawned SFX entities for one extra frame
-struct UiSfxCounter {
-    std::uint64_t frame = 0;
-};
+// UiSfxTag / UiSfxBorn / UiSfxCounter are declared in the header so other plugins can use them
+#include <plugins/ui_sfx.hpp>
 
 static void ui_sfx_startup_load(r::ecs::ResMut<r::AudioManager> audio, r::ecs::ResMut<UiSfxHandles> sfx)
 {
