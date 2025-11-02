@@ -9,6 +9,7 @@
 #include <R-Engine/Maths/Quaternion.hpp>
 #include <R-Engine/Plugins/InputPlugin.hpp>
 #include <R-Engine/Plugins/MeshPlugin.hpp>
+#include <R-Engine/Plugins/NetworkPlugin.hpp>
 #include <R-Engine/Plugins/RenderPlugin.hpp>
 #include <R-Engine/Plugins/WindowPlugin.hpp>
 #include <algorithm>
@@ -17,6 +18,7 @@
 #include <components/common.hpp>
 #include <components/player.hpp>
 #include <components/projectiles.hpp>
+#include <plugins/rtype_protocol_plugin.hpp>
 #include <resources/assets.hpp>
 #include <state/game_state.hpp>
 #include <state/run_conditions.hpp>
@@ -31,6 +33,15 @@ static constexpr float PLAYER_FIRE_RATE = 0.45f;
 static constexpr float PLAYER_BOUNDS_PADDING = 0.5f;
 static constexpr float WAVE_CANNON_CHARGE_START_DELAY = 0.2f;
 static constexpr float FORCE_FRONT_OFFSET_X = 1.75f;
+
+namespace {
+enum PlayerInput : uint8_t {
+    INPUT_UP = 1 << 0,
+    INPUT_DOWN = 1 << 1,
+    INPUT_LEFT = 1 << 2,
+    INPUT_RIGHT = 1 << 3,
+};
+}// namespace
 
 /* ================================================================================= */
 /* Player Systems :: Helpers */
@@ -165,6 +176,12 @@ static void handle_player_firing(r::ecs::Commands &commands, r::ecs::ResMut<r::M
 /* Player Systems */
 /* ================================================================================= */
 
+static void connect_to_server_on_join_system(r::ecs::EventWriter<r::net::NetworkConnectEvent> connect_writer)
+{
+    r::Logger::info("Player joining game, attempting to connect to server...");
+    connect_writer.send({.endpoint = {"127.0.0.1", 4242}, .protocol = r::net::Protocol::UDP});
+}
+
 static void spawn_player_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> meshes)
 {
     r::MeshHandle player_mesh_handle = meshes.ptr->add("assets/models/R-9.glb");
@@ -247,6 +264,42 @@ static void player_input_system(r::ecs::Commands &commands, r::ecs::Res<r::UserI
     }
 }
 
+/**
+ * @brief (UPDATE) Reads player input and sends it to the server.
+ * @details This system runs during gameplay states. It checks which actions
+ * are currently pressed, encodes them into a single-byte bitmask, and fires
+ * an event to send this data over the network via the RTypeProtocolPlugin.
+ */
+static void send_player_input_system(r::ecs::Res<r::UserInput> user_input, r::ecs::Res<r::InputMap> input_map,
+    r::ecs::EventWriter<rtype::protocol::SendRTypePacket> rtype_packet_writer)
+{
+    uint8_t input_mask = 0;
+
+    if (input_map.ptr->isActionPressed("MoveUp", *user_input.ptr))
+        input_mask |= PlayerInput::INPUT_UP;
+    if (input_map.ptr->isActionPressed("MoveDown", *user_input.ptr))
+        input_mask |= PlayerInput::INPUT_DOWN;
+    if (input_map.ptr->isActionPressed("MoveLeft", *user_input.ptr))
+        input_mask |= PlayerInput::INPUT_LEFT;
+    if (input_map.ptr->isActionPressed("MoveRight", *user_input.ptr))
+        input_mask |= PlayerInput::INPUT_RIGHT;
+
+    if (input_mask != 0) {
+        rtype::protocol::RTypePacket packet;
+
+        /* Populate the header with necessary information for the server */
+        packet.header.magic = 0x4254;///< Standard R-Type magic number
+        packet.header.version = 1;
+        packet.header.id = 0;///< Client ID, should be assigned by server upon connection
+        packet.header.command = static_cast<uint8_t>(rtype::protocol::RTypeCommand::CMD_INPUT);
+
+        /* The payload for an input command is just the one-byte bitmask. */
+        packet.payload.push_back(input_mask);
+
+        rtype_packet_writer.send({packet});
+    }
+}
+
 static void screen_bounds_system(r::ecs::Query<r::ecs::Mut<r::Transform3d>, r::ecs::With<Player>> query, r::ecs::Res<r::Camera3d> camera,
     r::ecs::Res<r::WindowPluginConfig> window_config)
 {
@@ -288,9 +341,11 @@ static void cleanup_player_system(r::ecs::Commands &commands, r::ecs::Query<r::e
 
 void PlayerPlugin::build(r::Application &app)
 {
-    app.add_systems<spawn_player_system>(r::OnEnter{GameState::EnemiesBattle})
+    app.add_systems<connect_to_server_on_join_system>(r::OnEnter{GameState::EnemiesBattle})
         .run_unless<run_conditions::is_resuming_from_pause>()
-        .add_systems<link_force_to_player_system, player_input_system, screen_bounds_system>(r::Schedule::UPDATE)
+        .add_systems<spawn_player_system>(r::OnEnter{GameState::EnemiesBattle})
+        .run_unless<run_conditions::is_resuming_from_pause>()
+        .add_systems<link_force_to_player_system, player_input_system, send_player_input_system, screen_bounds_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
         .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
         .add_systems<spawn_player_system>(r::OnEnter{GameState::MainMenu})

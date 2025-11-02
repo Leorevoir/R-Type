@@ -8,6 +8,7 @@
 #include <plugins/menu.hpp>
 #include <plugins/pause.hpp>
 #include <plugins/player.hpp>
+#include <plugins/rtype_protocol_plugin.hpp>
 #include <plugins/settings.hpp>
 
 #include <events/debug.hpp>
@@ -19,6 +20,7 @@
 #include <R-Engine/Core/Backend.hpp>
 #include <R-Engine/Plugins/DefaultPlugins.hpp>
 #include <R-Engine/Plugins/InputPlugin.hpp>
+#include <R-Engine/Plugins/NetworkPlugin.hpp>
 #include <R-Engine/Plugins/PostProcessingPlugin.hpp>
 #include <R-Engine/Plugins/RenderPlugin.hpp>
 #include <R-Engine/Plugins/WindowPlugin.hpp>
@@ -27,19 +29,19 @@
 #include <ctime>
 
 /**
-* @brief Disables the default ESC key behavior for closing the window.
-* @details This allows the game to handle ESC for pausing without quitting.
-*/
+ * @brief Disables the default ESC key behavior for closing the window.
+ * @details This allows the game to handle ESC for pausing without quitting.
+ */
 static void disable_escape_key_system()
 {
     SetExitKey(KEY_NULL);
 }
 
 /**
-* @brief (STARTUP) Sets up the game world.
-* @details This system runs once when entering the game. It configures the camera
-* and binds input actions.
-*/
+ * @brief (STARTUP) Sets up the game world.
+ * @details This system runs once when entering the game. It configures the camera
+ * and binds input actions.
+ */
 static void setup_core_game_system(r::ecs::ResMut<r::Camera3d> camera, r::ecs::ResMut<r::InputMap> input_map)
 {
     /* --- Configure Camera --- */
@@ -177,6 +179,10 @@ int main()
 
         /* Register all custom game events */
         .add_events<PlayerDiedEvent, BossTimeReachedEvent, BossDefeatedEvent, EntityDiedEvent, DebugSwitchLevelEvent>()
+
+        /* Add network plugins first */
+        .add_plugins(r::net::NetworkPlugin{})
+        .add_plugins(rtype::protocol::RTypeProtocolPlugin{})
 
         /* Add all our custom game plugins */
         .add_plugins(GameStatePlugin{})
