@@ -153,6 +153,55 @@ static void boss_spawn_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Mesh
                 .rotation_offset = {0.0f, -(static_cast<float>(M_PI) / 2.0f), 0.0f},
             });
 
+        /* If this is Level 2 (index == 1), spawn the shield as a small, destructible unit in front of the boss */
+        if (current_level.ptr->index == 1) {
+            r::MeshHandle shield_handle = meshes.ptr->add("assets/models/shield_sphere.glb");
+            if (shield_handle != r::MeshInvalidHandle) {
+                /* Spawn as a child so it follows the boss, but place it in front and much smaller.
+                   Make it an Enemy with its own Health/Collider so the player must destroy it first. */
+                boss_cmds.with_children([&](r::ecs::ChildBuilder &child) {
+                    /* Center/front shield */
+                    child.spawn(
+                        Enemy{}, /* treat shield as an enemy unit to be targetable */
+                        Health{3, 3},
+                        ScoreValue{100},
+                        r::Transform3d{
+                            /* place the shield a bit in front of the boss (local space) */
+                            .position = {-20.0f, 0.0f, 0.0f},
+                            .scale = {0.15f, 0.15f, 0.15f},
+                        },
+                        Collider{.radius = 1.3f},
+                        r::Mesh3d{.id = shield_handle, .color = r::Color{0, 200, 255, 255}});
+
+                    /* Top/front shield */
+                    child.spawn(
+                        Enemy{},
+                        Health{3, 3},
+                        ScoreValue{100},
+                        r::Transform3d{
+                            .position = {-15.0f, 5.0f, 0.0f},
+                            .scale = {0.12f, 0.12f, 0.12f},
+                        },
+                        Collider{.radius = 1.2f},
+                        r::Mesh3d{.id = shield_handle, .color = r::Color{0, 200, 255, 255}});
+
+                    /* Bottom/front shield */
+                    child.spawn(
+                        Enemy{},
+                        Health{3, 3},
+                        ScoreValue{100},
+                        r::Transform3d{
+                            .position = {-15.0f, -5.0f, 0.0f},
+                            .scale = {0.12f, 0.12f, 0.12f},
+                        },
+                        Collider{.radius = 1.2f},
+                        r::Mesh3d{.id = shield_handle, .color = r::Color{0, 200, 255, 255}});
+                });
+            } else {
+                r::Logger::error("Failed to queue shield model for loading: assets/models/shield_sphere.glb");
+            }
+        }
+
         /* Add the behavior "tag" component after spawning */
         switch (boss_data.behavior) {
             case BossBehaviorType::VerticalPatrol:

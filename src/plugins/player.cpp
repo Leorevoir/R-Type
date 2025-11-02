@@ -258,7 +258,7 @@ static void screen_bounds_system(r::ecs::Query<r::ecs::Mut<r::Transform3d>, r::e
     const float aspect_ratio = static_cast<float>(window_config.ptr->size.width) / static_cast<float>(window_config.ptr->size.height);
     const float fovy_rad = camera.ptr->fovy * (r::R_PI / 180.0f);
 
-    const float view_height = 2.0f * distance * std::tanf(fovy_rad / 2.0f);
+    const float view_height = 2.0f * distance * tanf(fovy_rad / 2.0f);
     const float view_width = view_height * aspect_ratio;
 
     const float half_height = view_height / 2.0f;
