@@ -27,6 +27,7 @@
 // Player-specific SFX handles
 struct PlayerSfxHandles {
     r::AudioHandle laser = r::AudioInvalidHandle;
+    r::AudioHandle launch = r::AudioInvalidHandle;
 };
 
 /* ================================================================================= */
@@ -73,7 +74,7 @@ static void spawn_player_force(r::ecs::ChildBuilder &parent, r::ecs::ResMut<r::M
 }
 
 static void fire_standard_shot(r::ecs::Commands &commands, r::ecs::ResMut<PlayerBulletAssets> &bullet_assets,
-    r::ecs::Ref<r::Transform3d> transform)
+    r::ecs::Ref<r::Transform3d> transform, r::ecs::Res<PlayerSfxHandles> sfx, r::ecs::Res<UiSfxCounter> counter)
 {
     /* --- Firing --- */
     commands.spawn(PlayerBullet{},
@@ -87,6 +88,11 @@ static void fire_standard_shot(r::ecs::Commands &commands, r::ecs::ResMut<Player
             .color = r::Color{255, 255, 255, 255}, /* Yellow color for bullets */
             .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, -static_cast<float>(M_PI) / 2.0f},
         });
+
+        /* Play launch SFX when a standard missile is spawned */
+        if (sfx.ptr && sfx.ptr->launch != r::AudioInvalidHandle) {
+            commands.spawn(UiSfxTag{}, UiSfxBorn{counter.ptr->frame}, r::AudioPlayer{sfx.ptr->launch}, r::AudioSink{});
+        }
 
     /* Standard shot: no SFX here. Laser SFX is played only on release (wave cannon). */
 }
@@ -166,7 +172,7 @@ static void handle_player_firing(r::ecs::Commands &commands, r::ecs::ResMut<r::M
 
             if (player.ptr->wave_cannon_charge_timer < WAVE_CANNON_CHARGE_START_DELAY && cooldown.ptr->timer <= 0.0f) {
             cooldown.ptr->timer = PLAYER_FIRE_RATE;
-            fire_standard_shot(commands, bullet_assets, transform);
+            fire_standard_shot(commands, bullet_assets, transform, sfx, counter);
         }
     } else { /* Fire button was released */
         if (player.ptr->wave_cannon_charge_timer >= WAVE_CANNON_CHARGE_START_DELAY) {
@@ -257,6 +263,12 @@ static void setup_bullet_assets_system(r::ecs::Commands &commands, r::ecs::ResMu
         r::Logger::warn("Failed to load assets/sounds/laser_beam.mp3");
     } else {
         r::Logger::info(std::string{"PlayerSfx: laser handle="} + std::to_string(sfx.laser));
+    }
+    sfx.launch = audio.ptr->load(r::path::get("assets/sounds/launch.mp3"));
+    if (sfx.launch == r::AudioInvalidHandle) {
+        r::Logger::warn("Failed to load assets/sounds/launch.mp3");
+    } else {
+        r::Logger::info(std::string{"PlayerSfx: launch handle="} + std::to_string(sfx.launch));
     }
     commands.insert_resource(sfx);
 }
