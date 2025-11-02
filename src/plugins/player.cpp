@@ -20,6 +20,7 @@
 #include <components/projectiles.hpp>
 #include <plugins/rtype_protocol_plugin.hpp>
 #include <resources/assets.hpp>
+#include <resources/game_mode.hpp>
 #include <state/game_state.hpp>
 #include <state/run_conditions.hpp>
 
@@ -179,7 +180,7 @@ static void handle_player_firing(r::ecs::Commands &commands, r::ecs::ResMut<r::M
 static void connect_to_server_on_join_system(r::ecs::EventWriter<r::net::NetworkConnectEvent> connect_writer)
 {
     r::Logger::info("Player joining game, attempting to connect to server...");
-    connect_writer.send({.endpoint = {"127.0.0.1", 4242}, .protocol = r::net::Protocol::UDP});
+    connect_writer.send({.endpoint = {"127.0.0.1", 4003}, .protocol = r::net::Protocol::UDP});
 }
 
 static void spawn_player_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> meshes)
@@ -341,17 +342,29 @@ static void cleanup_player_system(r::ecs::Commands &commands, r::ecs::Query<r::e
 
 void PlayerPlugin::build(r::Application &app)
 {
-    app.add_systems<connect_to_server_on_join_system>(r::OnEnter{GameState::EnemiesBattle})
+    app.add_systems<spawn_player_system>(r::OnEnter{GameState::EnemiesBattle})
         .run_unless<run_conditions::is_resuming_from_pause>()
-        .add_systems<spawn_player_system>(r::OnEnter{GameState::EnemiesBattle})
-        .run_unless<run_conditions::is_resuming_from_pause>()
-        .add_systems<link_force_to_player_system, player_input_system, send_player_input_system, screen_bounds_system>(r::Schedule::UPDATE)
-        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
-        .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
-        .add_systems<spawn_player_system>(r::OnEnter{GameState::MainMenu})
+
         .add_systems<setup_bullet_assets_system>(r::OnEnter{GameState::EnemiesBattle})
         .run_unless<run_conditions::is_resuming_from_pause>()
 
+        /* --- Gameplay Systems (Run in both Offline and Online mode) --- */
+        .add_systems<link_force_to_player_system, player_input_system, screen_bounds_system>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
+        .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
+
+        /* --- Online-Only Systems --- */
+        .add_systems<connect_to_server_on_join_system>(r::OnEnter{GameState::EnemiesBattle})
+        .run_unless<run_conditions::is_resuming_from_pause>()
+        .run_if<run_conditions::is_online_mode>()
+
+        .add_systems<send_player_input_system>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
+        .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
+        .run_if<run_conditions::is_online_mode>()
+
+        /* --- Main Menu Specific Systems --- */
+        .add_systems<spawn_player_system>(r::OnEnter{GameState::MainMenu})
         .add_systems<autoplay_player_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::MainMenu>>()
         .add_systems<cleanup_player_system>(r::OnExit{GameState::MainMenu});

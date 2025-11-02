@@ -17,6 +17,7 @@
 
 #include <components/player.hpp>
 #include <components/ui.hpp>
+#include <resources/game_mode.hpp>
 #include <resources/game_state.hpp>
 #include <resources/ui_state.hpp>
 #include <state/game_state.hpp>
@@ -166,7 +167,8 @@ static void build_main_menu(r::ecs::Commands &cmds)
             r::ComputedLayout{}, r::Visibility::Visible)
         .with_children([&](r::ecs::ChildBuilder &parent) {
             create_menu_title(parent);
-            create_menu_button(parent, MenuButton::Action::Play, "Play");
+            create_menu_button(parent, MenuButton::Action::PlayOffline, "Play Offline");
+            create_menu_button(parent, MenuButton::Action::PlayOnline, "Play Online");
             create_menu_button(parent, MenuButton::Action::Options, "Options");
             create_menu_button(parent, MenuButton::Action::Quit, "Quit");
         });
@@ -174,7 +176,7 @@ static void build_main_menu(r::ecs::Commands &cmds)
 
 static void menu_button_handler(r::ecs::EventReader<r::UiClick> click_reader, r::ecs::Query<r::ecs::Ref<MenuButton>> buttons,
     r::ecs::ResMut<r::NextState<GameState>> next_state, r::ecs::ResMut<PreviousGameState> prev_game_state,
-    r::ecs::Res<r::State<GameState>> current_state)
+    r::ecs::Res<r::State<GameState>> current_state, r::ecs::ResMut<GameMode> game_mode)
 {
     for (const auto &click : click_reader) {
         const r::ecs::Entity clicked_entity = click.entity;
@@ -192,8 +194,14 @@ static void menu_button_handler(r::ecs::EventReader<r::UiClick> click_reader, r:
         }
 
         switch (action) {
-            case MenuButton::Action::Play:
-                r::Logger::info("Starting game...");
+            case MenuButton::Action::PlayOffline:
+                r::Logger::info("Starting game in Offline mode...");
+                *game_mode.ptr = GameMode::Offline;
+                next_state.ptr->set(GameState::EnemiesBattle);
+                break;
+            case MenuButton::Action::PlayOnline:
+                r::Logger::info("Starting game in Online mode...");
+                *game_mode.ptr = GameMode::Online;
                 next_state.ptr->set(GameState::EnemiesBattle);
                 break;
             case MenuButton::Action::Options:

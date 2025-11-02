@@ -2,6 +2,7 @@
 
 #include <R-Engine/Core/States.hpp>
 #include <R-Engine/ECS/Query.hpp>
+#include <resources/game_mode.hpp>
 #include <state/game_state.hpp>
 
 namespace run_conditions {
@@ -14,4 +15,10 @@ namespace run_conditions {
  */
 bool is_resuming_from_pause(r::ecs::Res<r::State<GameState>> state);
 
-} // namespace run_conditions
+/**
+ * @brief Run condition that returns true if the game is in Online mode.
+ * @details Used to enable networking-specific systems.
+ */
+bool is_online_mode(r::ecs::Res<GameMode> mode);
+
+}// namespace run_conditions

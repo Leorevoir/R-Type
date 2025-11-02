@@ -30,11 +30,7 @@ function _base_run()
     local cmake_args="$1"
     local build_type="$2"
 
-    # Use --rebase to apply upstream changes on top of your current submodule branch
-    git submodule update --init --recursive --rebase
-    # Alternatively, you can use --merge
-    # git submodule update --init --recursive --merge
-
+    git submodule update --init --recursive
     mkdir -p build
     cd build || _error "mkdir failed"
 

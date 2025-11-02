@@ -13,6 +13,7 @@
 
 #include <events/debug.hpp>
 #include <events/game_events.hpp>
+#include <resources/game_mode.hpp>
 #include <resources/level.hpp>
 #include <state/game_state.hpp>
 
@@ -179,6 +180,9 @@ int main()
 
         /* Register all custom game events */
         .add_events<PlayerDiedEvent, BossTimeReachedEvent, BossDefeatedEvent, EntityDiedEvent, DebugSwitchLevelEvent>()
+
+        /* Insert game-wide resources */
+        .insert_resource(GameMode::Offline)
 
         /* Add network plugins first */
         .add_plugins(r::net::NetworkPlugin{})
