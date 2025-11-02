@@ -1,10 +1,14 @@
 #pragma once
 
+#include "R-Engine/Maths/Vec.hpp"
+
 /* -- Enemy Marker Components -- */
 
 struct Enemy {
 };
 struct Boss {
+};
+struct Shield {
 };
 
 /* -- Enemy Behavior Components -- */
@@ -24,6 +28,15 @@ struct HomingEnemy {
 struct VerticalPatrolBoss {
 };
 struct HomingAttackBoss {
+        enum class State {
+            Entering,
+            Repositioning,
+            Attacking,
+        };
+
+        State current_state = State::Entering;
+        float state_timer = 0.0f;///< Timer to control how long each state lasts
+        r::Vec3f target_position;///< The position the boss is trying to move to
 };
 struct TurretBoss {
 };

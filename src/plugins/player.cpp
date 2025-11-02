@@ -11,6 +11,7 @@
 #include <R-Engine/Plugins/MeshPlugin.hpp>
 #include <R-Engine/Plugins/RenderPlugin.hpp>
 #include <R-Engine/Plugins/WindowPlugin.hpp>
+#include <R-Engine/Core/Filepath.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -20,6 +21,14 @@
 #include <resources/assets.hpp>
 #include <state/game_state.hpp>
 #include <state/run_conditions.hpp>
+#include <plugins/ui_sfx.hpp>
+#include <R-Engine/Plugins/AudioPlugin.hpp>
+
+/* Player-specific SFX handles */
+struct PlayerSfxHandles {
+    r::AudioHandle laser = r::AudioInvalidHandle;
+    r::AudioHandle launch = r::AudioInvalidHandle;
+};
 
 /* ================================================================================= */
 /* Constants */
@@ -65,7 +74,7 @@ static void spawn_player_force(r::ecs::ChildBuilder &parent, r::ecs::ResMut<r::M
 }
 
 static void fire_standard_shot(r::ecs::Commands &commands, r::ecs::ResMut<PlayerBulletAssets> &bullet_assets,
-    r::ecs::Ref<r::Transform3d> transform)
+    r::ecs::Ref<r::Transform3d> transform, r::ecs::Res<PlayerSfxHandles> sfx, r::ecs::Res<UiSfxCounter> counter)
 {
     /* --- Firing --- */
     commands.spawn(PlayerBullet{},
@@ -79,10 +88,18 @@ static void fire_standard_shot(r::ecs::Commands &commands, r::ecs::ResMut<Player
             .color = r::Color{255, 255, 255, 255}, /* Yellow color for bullets */
             .rotation_offset = {-(static_cast<float>(M_PI) / 2.0f), 0.0f, -static_cast<float>(M_PI) / 2.0f},
         });
+
+        /* Play launch SFX when a standard missile is spawned */
+        if (sfx.ptr && sfx.ptr->launch != r::AudioInvalidHandle) {
+            commands.spawn(UiSfxTag{}, UiSfxBorn{counter.ptr->frame}, r::AudioPlayer{sfx.ptr->launch}, r::AudioSink{});
+        }
+
+    /* Standard shot: no SFX here. Laser SFX is played only on release (wave cannon). */
 }
 
+
 static void fire_wave_cannon(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> &meshes, r::ecs::Ref<r::Transform3d> transform,
-    float charge_timer)
+    float charge_timer, r::ecs::Res<PlayerSfxHandles> sfx, r::ecs::Res<UiSfxCounter> counter)
 {
     float charge_duration = charge_timer - WAVE_CANNON_CHARGE_START_DELAY;
     charge_duration = std::min(charge_duration, 2.0f); /* Max charge of 2s */
@@ -111,6 +128,10 @@ static void fire_wave_cannon(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshe
                     .id = beam_mesh_handle,
                     .color = r::Color{98, 221, 255, 255}, /* R-Type cyan */
                 });
+            /* Play laser SFX at the same moment the beam is spawned (on release). */
+            if (sfx.ptr && sfx.ptr->laser != r::AudioInvalidHandle) {
+                commands.spawn(UiSfxTag{}, UiSfxBorn{counter.ptr->frame}, r::AudioPlayer{sfx.ptr->laser}, r::AudioSink{});
+            }
         }
     }
 }
@@ -140,7 +161,7 @@ static void handle_player_movement(r::ecs::Mut<Velocity> &velocity, r::ecs::Res<
 
 static void handle_player_firing(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> &meshes, r::ecs::Res<r::core::FrameTime> const &time,
     r::ecs::Ref<r::Transform3d> transform, r::ecs::Mut<FireCooldown> cooldown, r::ecs::Mut<Player> player,
-    r::ecs::ResMut<PlayerBulletAssets> &bullet_assets, bool is_fire_pressed)
+    r::ecs::ResMut<PlayerBulletAssets> &bullet_assets, bool is_fire_pressed, r::ecs::Res<PlayerSfxHandles> sfx, r::ecs::Res<UiSfxCounter> counter)
 {
     if (cooldown.ptr->timer > 0.0f) {
         cooldown.ptr->timer -= time.ptr->delta_time;
@@ -149,13 +170,13 @@ static void handle_player_firing(r::ecs::Commands &commands, r::ecs::ResMut<r::M
     if (is_fire_pressed) {
         player.ptr->wave_cannon_charge_timer += time.ptr->delta_time;
 
-        if (player.ptr->wave_cannon_charge_timer < WAVE_CANNON_CHARGE_START_DELAY && cooldown.ptr->timer <= 0.0f) {
+            if (player.ptr->wave_cannon_charge_timer < WAVE_CANNON_CHARGE_START_DELAY && cooldown.ptr->timer <= 0.0f) {
             cooldown.ptr->timer = PLAYER_FIRE_RATE;
-            fire_standard_shot(commands, bullet_assets, transform);
+            fire_standard_shot(commands, bullet_assets, transform, sfx, counter);
         }
     } else { /* Fire button was released */
         if (player.ptr->wave_cannon_charge_timer >= WAVE_CANNON_CHARGE_START_DELAY) {
-            fire_wave_cannon(commands, meshes, transform, player.ptr->wave_cannon_charge_timer);
+            fire_wave_cannon(commands, meshes, transform, player.ptr->wave_cannon_charge_timer, sfx, counter);
         }
         player.ptr->wave_cannon_charge_timer = 0.0f; /* Reset timer on release */
     }
@@ -218,7 +239,8 @@ static void link_force_to_player_system(r::ecs::Query<r::ecs::Mut<Player>, r::ec
     }
 }
 
-static void setup_bullet_assets_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> meshes)
+static void setup_bullet_assets_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> meshes,
+    r::ecs::ResMut<r::AudioManager> audio)
 {
     PlayerBulletAssets bullet_assets;
 
@@ -233,17 +255,34 @@ static void setup_bullet_assets_system(r::ecs::Commands &commands, r::ecs::ResMu
     }
 
     commands.insert_resource(bullet_assets);
+
+    /* Load player SFX */
+    PlayerSfxHandles sfx;
+    sfx.laser = audio.ptr->load(r::path::get("assets/sounds/laser_beam.mp3"));
+    if (sfx.laser == r::AudioInvalidHandle) {
+        r::Logger::warn("Failed to load assets/sounds/laser_beam.mp3");
+    } else {
+        r::Logger::info(std::string{"PlayerSfx: laser handle="} + std::to_string(sfx.laser));
+    }
+    sfx.launch = audio.ptr->load(r::path::get("assets/sounds/launch.mp3"));
+    if (sfx.launch == r::AudioInvalidHandle) {
+        r::Logger::warn("Failed to load assets/sounds/launch.mp3");
+    } else {
+        r::Logger::info(std::string{"PlayerSfx: launch handle="} + std::to_string(sfx.launch));
+    }
+    commands.insert_resource(sfx);
 }
 
 static void player_input_system(r::ecs::Commands &commands, r::ecs::Res<r::UserInput> user_input, r::ecs::Res<r::InputMap> input_map,
     r::ecs::ResMut<PlayerBulletAssets> bullet_assets, r::ecs::Res<r::core::FrameTime> time, r::ecs::ResMut<r::Meshes> meshes,
+    r::ecs::Res<PlayerSfxHandles> sfx, r::ecs::Res<UiSfxCounter> counter,
     r::ecs::Query<r::ecs::Mut<Velocity>, r::ecs::Ref<r::Transform3d>, r::ecs::Mut<FireCooldown>, r::ecs::Mut<Player>> query)
 {
     const bool is_fire_pressed = input_map.ptr->isActionPressed("Fire", *user_input.ptr);
 
     for (auto [velocity, transform, cooldown, player] : query) {
         handle_player_movement(velocity, input_map, user_input);
-        handle_player_firing(commands, meshes, time, transform, cooldown, player, bullet_assets, is_fire_pressed);
+        handle_player_firing(commands, meshes, time, transform, cooldown, player, bullet_assets, is_fire_pressed, sfx, counter);
     }
 }
 
@@ -258,7 +297,7 @@ static void screen_bounds_system(r::ecs::Query<r::ecs::Mut<r::Transform3d>, r::e
     const float aspect_ratio = static_cast<float>(window_config.ptr->size.width) / static_cast<float>(window_config.ptr->size.height);
     const float fovy_rad = camera.ptr->fovy * (r::R_PI / 180.0f);
 
-    const float view_height = 2.0f * distance * std::tanf(fovy_rad / 2.0f);
+    const float view_height = 2.0f * distance * tanf(fovy_rad / 2.0f);
     const float view_width = view_height * aspect_ratio;
 
     const float half_height = view_height / 2.0f;

@@ -30,7 +30,7 @@ static void asteroid_field_system(r::ecs::Res<r::core::FrameTime> time, r::ecs::
         return;
 
     const float distance_camera = camera.ptr->position.z;
-    const float view_height = 2.0f * distance_camera * std::tanf(camera.ptr->fovy * (r::R_PI / 180.0f) / 2.0f);
+    const float view_height = 2.0f * distance_camera * tanf(camera.ptr->fovy * (r::R_PI / 180.0f) / 2.0f);
     const float view_width = view_height * (static_cast<float>(1280) / static_cast<float>(720));
 
     const float SCROLL_BUFFER_FACTOR = 2.0f;
@@ -75,7 +75,7 @@ static void spawn_scenery_system(r::ecs::Commands &commands, r::ecs::ResMut<r::M
     }
 
     const float distance_camera = camera.ptr->position.z;
-    const float view_height = 2.0f * distance_camera * std::tanf(camera.ptr->fovy * (r::R_PI / 180.0f) / 2.0f);
+    const float view_height = 2.0f * distance_camera * tanf(camera.ptr->fovy * (r::R_PI / 180.0f) / 2.0f);
     const float view_width = view_height * (static_cast<float>(1280) / static_cast<float>(720));
 
     const float SPAWN_BUFFER_FACTOR = 1.5f;
@@ -150,7 +150,7 @@ static void spawn_background_system(r::ecs::Commands &commands, r::ecs::ResMut<r
 
     const float effective_distance = camera.ptr->position.z - BACKGROUND_Z_DEPTH;
 
-    const float correct_view_height = 2.0f * effective_distance * std::tanf(camera.ptr->fovy * (r::R_PI / 180.0f) / 2.0f);
+    const float correct_view_height = 2.0f * effective_distance * tanf(camera.ptr->fovy * (r::R_PI / 180.0f) / 2.0f);
     const float correct_view_width = correct_view_height * (static_cast<float>(1280) / static_cast<float>(720));
 
     ::Mesh background_mesh_data = GenMeshPlane(correct_view_width, correct_view_height, 1, 1);
@@ -185,7 +185,7 @@ static void scroll_scenery_system(r::ecs::Res<r::core::FrameTime> time, r::ecs::
         return;
 
     const float distance_camera = camera.ptr->position.z;
-    const float view_height = 2.0f * distance_camera * std::tanf(camera.ptr->fovy * (r::R_PI / 180.0f) / 2.0f);
+    const float view_height = 2.0f * distance_camera * tanf(camera.ptr->fovy * (r::R_PI / 180.0f) / 2.0f);
     const float view_width = view_height * (static_cast<float>(1880) / static_cast<float>(720));
 
     const float SCROLL_BUFFER_FACTOR = 1.5f;

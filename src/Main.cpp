@@ -6,6 +6,7 @@
 #include <plugins/gameplay.hpp>
 #include <plugins/map.hpp>
 #include <plugins/menu.hpp>
+#include <plugins/ui_sfx.hpp>
 #include <plugins/pause.hpp>
 #include <plugins/player.hpp>
 #include <plugins/settings.hpp>
@@ -181,6 +182,7 @@ int main()
         /* Add all our custom game plugins */
         .add_plugins(GameStatePlugin{})
         .add_plugins(MenuPlugin{})
+    .add_plugins(UiSfxPlugin{})
         .add_plugins(PausePlugin{})
         .add_plugins(SettingsPlugin{})
         .add_plugins(MapPlugin{})
