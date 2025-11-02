@@ -39,17 +39,29 @@ static void handle_entity_death(r::ecs::Commands &commands, r::ecs::EventReader<
 
 static bool process_bullet_enemy_collision(r::ecs::EventWriter<EntityDiedEvent> &entity_death_writer, r::ecs::Entity bullet_entity,
     const r::Vec3f &bullet_center, float bullet_radius,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Enemy>> &enemy_query)
+    r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Enemy>> &enemy_query,
+    r::ecs::Query<r::ecs::Ref<r::ecs::Parent>, r::ecs::Mut<Health>, r::ecs::With<Shield>> &shield_query)
 {
     for (auto enemy_it = enemy_query.begin(); enemy_it != enemy_query.end(); ++enemy_it) {
-        auto [enemy_transform, enemy_collider, health, _e] = *enemy_it;
-        r::Vec3f enemy_center = enemy_transform.ptr->position + enemy_collider.ptr->offset;
+    auto [enemy_transform, enemy_collider, health, _e] = *enemy_it;
+    /* Use global transform so child shields (local transform) are evaluated in world space */
+    r::Vec3f enemy_center = enemy_transform.ptr->position + enemy_collider.ptr->offset;
         float distance = (bullet_center - enemy_center).length();
         float radii_sum = bullet_radius + enemy_collider.ptr->radius;
 
         if (distance < radii_sum) {
             entity_death_writer.send({bullet_entity});
             health.ptr->current -= 1;
+
+            /* If this entity is a shield, log the damage and remaining HP */
+            for (auto shield_it = shield_query.begin(); shield_it != shield_query.end(); ++shield_it) {
+                auto [parent, shield_health, _s] = *shield_it;
+                if (shield_it.entity() == enemy_it.entity()) {
+                        // r::Logger::info("Shield " + std::to_string(static_cast<uint32_t>(enemy_it.entity())) + " took " + std::to_string(1) + " damage, remaining HP: " + std::to_string(shield_health.ptr->current));
+                    break;
+                }
+                (void)parent; /* parent not used here */
+            }
 
             if (health.ptr->current <= 0) {
                 entity_death_writer.send({enemy_it.entity()});
@@ -62,33 +74,77 @@ static bool process_bullet_enemy_collision(r::ecs::EventWriter<EntityDiedEvent> 
 
 static void handle_bullet_vs_enemy_collisions(r::ecs::EventWriter<EntityDiedEvent> &entity_death_writer,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<PlayerBullet>> &bullet_query,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Enemy>> &enemy_query)
+    r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Enemy>> &enemy_query,
+    r::ecs::Query<r::ecs::Ref<r::ecs::Parent>, r::ecs::Mut<Health>, r::ecs::With<Shield>> &shield_query)
 {
     for (auto bullet_it = bullet_query.begin(); bullet_it != bullet_query.end(); ++bullet_it) {
         auto [bullet_transform, bullet_collider, _b] = *bullet_it;
         r::Vec3f bullet_center = bullet_transform.ptr->position + bullet_collider.ptr->offset;
 
-        process_bullet_enemy_collision(entity_death_writer, bullet_it.entity(), bullet_center, bullet_collider.ptr->radius, enemy_query);
+    process_bullet_enemy_collision(entity_death_writer, bullet_it.entity(), bullet_center, bullet_collider.ptr->radius, enemy_query, shield_query);
     }
 }
 
 static void handle_bullet_vs_boss_collisions(r::ecs::EventWriter<EntityDiedEvent> &entity_death_writer,
     r::ecs::EventWriter<BossDefeatedEvent> &boss_death_writer,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<PlayerBullet>> &bullet_query,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Boss>> &boss_query)
+    r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Boss>> &boss_query,
+    r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::Ref<r::ecs::Parent>, r::ecs::With<Shield>> &shield_world_query)
 {
     for (auto bullet_it = bullet_query.begin(); bullet_it != bullet_query.end(); ++bullet_it) {
         auto [bullet_transform, bullet_collider, _b] = *bullet_it;
         for (auto boss_it = boss_query.begin(); boss_it != boss_query.end(); ++boss_it) {
             auto [boss_transform, boss_collider, health, _boss] = *boss_it;
             r::Vec3f bullet_center = bullet_transform.ptr->position + bullet_collider.ptr->offset;
+            /* boss_transform is a global transform to match bullets' world coordinates */
             r::Vec3f boss_center = boss_transform.ptr->position + boss_collider.ptr->offset;
             float distance = (bullet_center - boss_center).length();
             float radii_sum = bullet_collider.ptr->radius + boss_collider.ptr->radius;
 
             if (distance < radii_sum) {
+                /* First: check explicit shield collisions at bullet position and process them */
+                bool bullet_handled_by_shield = false;
+                for (auto shield_it = shield_world_query.begin(); shield_it != shield_world_query.end(); ++shield_it) {
+                    auto [shield_transform, shield_collider, shield_health, shield_parent, _s] = *shield_it;
+                    r::Vec3f shield_center = shield_transform.ptr->position + shield_collider.ptr->offset;
+                    float shield_radii_sum = bullet_collider.ptr->radius + shield_collider.ptr->radius;
+                    if ((bullet_center - shield_center).length() < shield_radii_sum) {
+                        /* Bullet hits shield: consume bullet and damage shield */
+                        entity_death_writer.send({bullet_it.entity()});
+                        shield_health.ptr->current -= 1;
+                        if (shield_health.ptr->current <= 0) {
+                            entity_death_writer.send({shield_it.entity()});
+                        }
+                        bullet_handled_by_shield = true;
+                        break;
+                    }
+                }
+
+                if (bullet_handled_by_shield) {
+                    break; /* don't let this bullet also damage the boss */
+                }
+
+                /* If any shields exist (child entities with Shield component and health > 0), boss is invulnerable */
+                    bool shields_alive = false;
+                    for (auto shield_it = shield_world_query.begin(); shield_it != shield_world_query.end(); ++shield_it) {
+                        auto [shield_transform_w, shield_collider_w, shield_health_w, shield_parent_w, _s] = *shield_it;
+                        if (shield_health_w.ptr->current > 0) {
+                            shields_alive = true;
+                            break;
+                        }
+                    }
+
+                if (shields_alive) {
+                    /* If shields are alive, bullets should not damage the boss here. Destroy bullet only. */
+                    entity_death_writer.send({bullet_it.entity()});
+                    break;
+                }
+
+                /* No shields blocking: apply damage to boss */
                 entity_death_writer.send({bullet_it.entity()});
                 health.ptr->current -= 1;
+
+                
 
                 if (health.ptr->current <= 0) {
                     entity_death_writer.send({boss_it.entity()});
@@ -102,14 +158,49 @@ static void handle_bullet_vs_boss_collisions(r::ecs::EventWriter<EntityDiedEvent
 
 static bool process_beam_boss_collision(r::ecs::EventWriter<EntityDiedEvent> &entity_death_writer,
     r::ecs::EventWriter<BossDefeatedEvent> &boss_death_writer, r::ecs::Entity beam_entity, const r::Vec3f &beam_center, float beam_radius,
-    int beam_damage, r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Boss>> &boss_query)
+    int beam_damage, r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Boss>> &boss_query,
+    r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::Ref<r::ecs::Parent>, r::ecs::With<Shield>> &shield_world_query)
 {
     for (auto boss_it = boss_query.begin(); boss_it != boss_query.end(); ++boss_it) {
         auto [boss_transform, boss_collider, health, _boss] = *boss_it;
+        /* Use global transform for boss as well */
         r::Vec3f boss_center = boss_transform.ptr->position + boss_collider.ptr->offset;
         if ((beam_center - boss_center).length() < beam_radius + boss_collider.ptr->radius) {
+            /* First: check collision against shields (world positions) and process them */
+            for (auto shield_it = shield_world_query.begin(); shield_it != shield_world_query.end(); ++shield_it) {
+                auto [shield_transform, shield_collider, shield_health, shield_parent, _s] = *shield_it;
+                r::Vec3f shield_center = shield_transform.ptr->position + shield_collider.ptr->offset;
+                if ((beam_center - shield_center).length() < beam_radius + shield_collider.ptr->radius) {
+                    /* Beam hits shield: apply beam damage and destroy beam */
+                    shield_health.ptr->current -= beam_damage;
+                    entity_death_writer.send({beam_entity});
+                    if (shield_health.ptr->current <= 0) {
+                        entity_death_writer.send({shield_it.entity()});
+                    }
+                    return true; /* Beam destroyed upon hitting shield */
+                }
+            }
+
+            /* If any shields attached to this boss are still alive, the boss is invulnerable */
+            bool shields_alive = false;
+            for (auto shield_it = shield_world_query.begin(); shield_it != shield_world_query.end(); ++shield_it) {
+                auto [shield_transform_w, shield_collider_w, shield_health_w, shield_parent_w, _s] = *shield_it;
+                if (shield_health_w.ptr->current > 0) {
+                    shields_alive = true;
+                    break;
+                }
+            }
+
+            if (shields_alive) {
+                entity_death_writer.send({beam_entity});
+                return true; /* Beam destroyed upon hitting shields/boss area */
+            }
+
+            /* No shields: apply damage to boss */
             health.ptr->current -= beam_damage;
             entity_death_writer.send({beam_entity});
+
+            
 
             if (health.ptr->current <= 0) {
                 entity_death_writer.send({boss_it.entity()});
@@ -124,8 +215,9 @@ static bool process_beam_boss_collision(r::ecs::EventWriter<EntityDiedEvent> &en
 static void handle_beam_collisions(r::ecs::EventWriter<EntityDiedEvent> &entity_death_writer,
     r::ecs::EventWriter<BossDefeatedEvent> &boss_death_writer,
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Ref<WaveCannonBeam>> &beam_query,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Enemy>> &enemy_query,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Boss>> &boss_query)
+    r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Enemy>> &enemy_query,
+    r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Boss>> &boss_query,
+    r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::Ref<r::ecs::Parent>, r::ecs::With<Shield>> &shield_world_query)
 {
     for (auto beam_it = beam_query.begin(); beam_it != beam_query.end(); ++beam_it) {
         auto [beam_transform, beam_collider, beam] = *beam_it;
@@ -134,6 +226,7 @@ static void handle_beam_collisions(r::ecs::EventWriter<EntityDiedEvent> &entity_
         /* Collision with enemies (penetrating) */
         for (auto enemy_it = enemy_query.begin(); enemy_it != enemy_query.end(); ++enemy_it) {
             auto [enemy_transform, enemy_collider, health, _e] = *enemy_it;
+            /* enemy_transform is global now so we correctly collide with child shields */
             r::Vec3f enemy_center = enemy_transform.ptr->position + enemy_collider.ptr->offset;
             if ((beam_center - enemy_center).length() < beam_collider.ptr->radius + enemy_collider.ptr->radius) {
                 /* Beam is powerful, for now it one-shots regular enemies */
@@ -143,7 +236,7 @@ static void handle_beam_collisions(r::ecs::EventWriter<EntityDiedEvent> &entity_
 
         /* Collision with boss (not penetrating) */
         process_beam_boss_collision(entity_death_writer, boss_death_writer, beam_it.entity(), beam_center, beam_collider.ptr->radius,
-            beam.ptr->damage, boss_query);
+            beam.ptr->damage, boss_query, shield_world_query);
     }
 }
 
@@ -153,14 +246,16 @@ static void handle_beam_collisions(r::ecs::EventWriter<EntityDiedEvent> &entity_
 
 static void collision_system(r::ecs::EventWriter<EntityDiedEvent> entity_death_writer,
     r::ecs::EventWriter<BossDefeatedEvent> boss_death_writer,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<PlayerBullet>> bullet_query,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Ref<WaveCannonBeam>> beam_query,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Enemy>> enemy_query,
-    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Boss>> boss_query)
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::With<PlayerBullet>> &bullet_query,
+    r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Ref<Collider>, r::ecs::Ref<WaveCannonBeam>> &beam_query,
+    r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Enemy>> &enemy_query,
+    r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::With<Boss>> &boss_query,
+    r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::Ref<Collider>, r::ecs::Mut<Health>, r::ecs::Ref<r::ecs::Parent>, r::ecs::With<Shield>> &shield_world_query,
+    r::ecs::Query<r::ecs::Ref<r::ecs::Parent>, r::ecs::Mut<Health>, r::ecs::With<Shield>> &shield_query)
 {
-    handle_bullet_vs_enemy_collisions(entity_death_writer, bullet_query, enemy_query);
-    handle_bullet_vs_boss_collisions(entity_death_writer, boss_death_writer, bullet_query, boss_query);
-    handle_beam_collisions(entity_death_writer, boss_death_writer, beam_query, enemy_query, boss_query);
+    handle_bullet_vs_enemy_collisions(entity_death_writer, bullet_query, enemy_query, shield_query);
+    handle_bullet_vs_boss_collisions(entity_death_writer, boss_death_writer, bullet_query, boss_query, shield_world_query);
+    handle_beam_collisions(entity_death_writer, boss_death_writer, beam_query, enemy_query, boss_query, shield_world_query);
 }
 
 static void player_collision_system(r::ecs::EventWriter<PlayerDiedEvent> death_writer,

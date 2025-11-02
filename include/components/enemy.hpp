@@ -8,6 +8,8 @@ struct Enemy {
 };
 struct Boss {
 };
+struct Shield {
+};
 
 /* -- Enemy Behavior Components -- */
 

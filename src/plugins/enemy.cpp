@@ -155,50 +155,50 @@ static void boss_spawn_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Mesh
 
         /* If this is Level 2 (index == 1), spawn the shield as a small, destructible unit in front of the boss */
         if (current_level.ptr->index == 1) {
-            r::MeshHandle shield_handle = meshes.ptr->add("assets/models/shield_sphere.glb");
+        r::MeshHandle shield_handle = meshes.ptr->add("assets/models/Shield.glb");
             if (shield_handle != r::MeshInvalidHandle) {
                 /* Spawn as a child so it follows the boss, but place it in front and much smaller.
                    Make it an Enemy with its own Health/Collider so the player must destroy it first. */
                 boss_cmds.with_children([&](r::ecs::ChildBuilder &child) {
                     /* Center/front shield */
                     child.spawn(
-                        Enemy{}, /* treat shield as an enemy unit to be targetable */
-                        Health{3, 3},
+                        Enemy{}, Shield{}, /* treat shield as an enemy unit to be targetable */
+                        Health{350, 350},
                         ScoreValue{100},
                         r::Transform3d{
                             /* place the shield a bit in front of the boss (local space) */
                             .position = {-20.0f, 0.0f, 0.0f},
-                            .scale = {0.15f, 0.15f, 0.15f},
+                            .scale = {3.0f, 3.0f, 3.0f},
                         },
-                        Collider{.radius = 1.3f},
-                        r::Mesh3d{.id = shield_handle, .color = r::Color{0, 200, 255, 255}});
+                        Collider{.radius = 1.1f},
+                        r::Mesh3d{.id = shield_handle, .color = r::Color{255, 255, 255, 255}, .rotation_offset = {0.0f, -(static_cast<float>(M_PI) / 2.0f), 0.0f}});
 
                     /* Top/front shield */
                     child.spawn(
-                        Enemy{},
-                        Health{3, 3},
+                        Enemy{}, Shield{},
+                        Health{350, 350},
                         ScoreValue{100},
                         r::Transform3d{
                             .position = {-15.0f, 5.0f, 0.0f},
-                            .scale = {0.12f, 0.12f, 0.12f},
+                            .scale = {2.5f, 2.5f, 2.5f},
                         },
-                        Collider{.radius = 1.2f},
-                        r::Mesh3d{.id = shield_handle, .color = r::Color{0, 200, 255, 255}});
+                        Collider{.radius = 1.0f},
+                        r::Mesh3d{.id = shield_handle, .color = r::Color{255, 255, 255, 255}, .rotation_offset = {0.0f, -(static_cast<float>(M_PI) / 2.0f), 0.0f}});
 
                     /* Bottom/front shield */
                     child.spawn(
-                        Enemy{},
-                        Health{3, 3},
+                        Enemy{}, Shield{},
+                        Health{350, 350},
                         ScoreValue{100},
                         r::Transform3d{
                             .position = {-15.0f, -5.0f, 0.0f},
-                            .scale = {0.12f, 0.12f, 0.12f},
+                            .scale = {2.5f, 2.5f, 2.5f},
                         },
-                        Collider{.radius = 1.2f},
-                        r::Mesh3d{.id = shield_handle, .color = r::Color{0, 200, 255, 255}});
+                        Collider{.radius = 1.0f},
+                        r::Mesh3d{.id = shield_handle, .color = r::Color{255, 255, 255, 255}, .rotation_offset = {0.0f, -(static_cast<float>(M_PI) / 2.0f), 0.0f}});
                 });
             } else {
-                r::Logger::error("Failed to queue shield model for loading: assets/models/shield_sphere.glb");
+                r::Logger::error("Failed to queue shield model for loading: assets/models/Shield.glb");
             }
         }
 
@@ -281,6 +281,30 @@ static void enemy_movement_homing_system(r::ecs::Res<r::core::FrameTime> time,
 /* ================================================================================= */
 /* Boss Behavior Systems */
 /* ================================================================================= */
+
+static void boss_shield_color_system(
+    r::ecs::Query<r::ecs::Mut<r::Mesh3d>, r::ecs::With<Boss>> boss_query,
+    r::ecs::Query<r::ecs::Ref<Health>, r::ecs::With<Shield>> shield_query)
+{
+    bool shields_alive = false;
+    for (auto [health, _s] : shield_query) {
+        if (health.ptr->current > 0) {
+            shields_alive = true;
+            break;
+        }
+    }
+
+    for (auto [mesh, _b] : boss_query) {
+        if (shields_alive) {
+            /* Tint the boss while shields are up (light blue tint) */
+            mesh.ptr->color = r::Color{100, 180, 255, 255};
+        } else {
+            /* Restore base color */
+            mesh.ptr->color = r::Color{255, 255, 255, 255};
+        }
+    }
+}
+
 
 static void boss_movement_vertical_patrol_system(
     r::ecs::Query<r::ecs::Ref<r::Transform3d>, r::ecs::Mut<Velocity>, r::ecs::With<VerticalPatrolBoss>> query)
@@ -469,6 +493,10 @@ void EnemyPlugin::build(r::Application &app)
         .add_systems<boss_movement_homing_attack_system, boss_shooting_homing_attack_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::BossBattle>>()
 
-        .add_systems<boss_movement_turret_system>(r::Schedule::UPDATE)
-        .run_if<r::run_conditions::in_state<GameState::BossBattle>>();
+    .add_systems<boss_movement_turret_system>(r::Schedule::UPDATE)
+    .run_if<r::run_conditions::in_state<GameState::BossBattle>>()
+
+    /* Tint boss while shields are alive */
+    .add_systems<boss_shield_color_system>(r::Schedule::UPDATE)
+    .run_if<r::run_conditions::in_state<GameState::BossBattle>>();
 }
