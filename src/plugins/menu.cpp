@@ -202,7 +202,7 @@ static void menu_button_handler(r::ecs::EventReader<r::UiClick> click_reader, r:
             case MenuButton::Action::PlayOnline:
                 r::Logger::info("Starting game in Online mode...");
                 *game_mode.ptr = GameMode::Online;
-                next_state.ptr->set(GameState::EnemiesBattle);
+                next_state.ptr->set(GameState::OnlineMenu);
                 break;
             case MenuButton::Action::Options:
                 r::Logger::info("Options clicked, opening settings menu...");
@@ -215,6 +215,77 @@ static void menu_button_handler(r::ecs::EventReader<r::UiClick> click_reader, r:
                 break;
             default:
                 break;
+        }
+    }
+}
+
+static void build_online_menu(r::ecs::Commands &cmds, r::ecs::Res<NetworkConfig> net_config)
+{
+    cmds.spawn(OnlineMenuRoot{}, r::UiNode{},
+            r::Style{
+                .width_pct = 100.f,
+                .height_pct = 100.f,
+                .background = r::Color{255, 255, 255, 40},
+                .direction = r::LayoutDirection::Column,
+                .justify = r::JustifyContent::Center,
+                .align = r::AlignItems::Center,
+                .gap = 15.f,
+            },
+            r::ComputedLayout{}, r::Visibility::Visible)
+        .with_children([&](r::ecs::ChildBuilder &parent) {
+            parent.spawn(r::UiNode{}, r::UiText{.content = "Connect to Server", .font_size = 48, .color = {98, 221, 255, 255}},
+                r::Style{.height = 60.f, .margin = 20.f}, r::ComputedLayout{}, r::Visibility::Visible);
+
+            parent.spawn(r::UiNode{}, r::UiText{.content = "Address: " + net_config.ptr->server_address, .font_size = 24},
+                r::Style{.height = 30.f}, r::ComputedLayout{}, r::Visibility::Visible);
+
+            parent.spawn(r::UiNode{}, r::UiText{.content = "Port: " + std::to_string(net_config.ptr->server_port), .font_size = 24},
+                r::Style{.height = 30.f, .margin = 20.f}, r::ComputedLayout{}, r::Visibility::Visible);
+
+            parent.spawn(r::UiNode{}, r::UiButton{}, OnlineMenuButton{OnlineMenuButton::Action::Connect},
+                r::Style{.width = 220.f, .height = 45.f, .justify = r::JustifyContent::Center, .align = r::AlignItems::Center},
+                r::UiText{.content = "Connect", .font_size = 22}, r::ComputedLayout{}, r::Visibility::Visible);
+
+            parent.spawn(r::UiNode{}, r::UiButton{}, OnlineMenuButton{OnlineMenuButton::Action::Back},
+                r::Style{.width = 220.f, .height = 45.f, .justify = r::JustifyContent::Center, .align = r::AlignItems::Center},
+                r::UiText{.content = "Back", .font_size = 22}, r::ComputedLayout{}, r::Visibility::Visible);
+        });
+}
+
+static void cleanup_online_menu(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<OnlineMenuRoot>> query)
+{
+    for (auto it = query.begin(); it != query.end(); ++it) {
+        cmds.despawn(it.entity());
+    }
+}
+
+static void online_menu_button_handler(r::ecs::EventReader<r::UiClick> click_reader, r::ecs::Query<r::ecs::Ref<OnlineMenuButton>> buttons,
+    r::ecs::ResMut<r::NextState<GameState>> next_state)
+{
+    for (const auto &click : click_reader) {
+        if (click.entity == r::ecs::NULL_ENTITY) {
+            continue;
+        }
+
+        for (auto it = buttons.begin(); it != buttons.end(); ++it) {
+            if (it.entity() != click.entity) {
+                continue;
+            }
+
+            auto [btn] = *it;
+            switch (btn.ptr->action) {
+                case OnlineMenuButton::Action::Connect:
+                    r::Logger::info("Connecting to server...");
+                    next_state.ptr->set(GameState::EnemiesBattle);
+                    break;
+                case OnlineMenuButton::Action::Back:
+                    r::Logger::info("Returning to main menu...");
+                    next_state.ptr->set(GameState::MainMenu);
+                    break;
+                default:
+                    break;
+            }
+            return;
         }
     }
 }
@@ -376,8 +447,16 @@ void MenuPlugin::build(r::Application &app)
         /* Main Menu State */
         .add_systems<build_main_menu>(r::OnEnter{GameState::MainMenu})
         .add_systems<menu_button_handler>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::MainMenu>>()
         .run_if<r::run_conditions::on_event<r::UiClick>>()
         .add_systems<cleanup_menu>(r::OnExit{GameState::MainMenu})
+
+        /* Online Menu State */
+        .add_systems<build_online_menu>(r::OnEnter{GameState::OnlineMenu})
+        .add_systems<online_menu_button_handler>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::OnlineMenu>>()
+        .run_if<r::run_conditions::on_event<r::UiClick>>()
+        .add_systems<cleanup_online_menu>(r::OnExit{GameState::OnlineMenu})
 
         /* In-Game HUD */
         .add_systems<cleanup_game_hud>(r::OnEnter{GameState::EnemiesBattle})

@@ -177,10 +177,12 @@ static void handle_player_firing(r::ecs::Commands &commands, r::ecs::ResMut<r::M
 /* Player Systems */
 /* ================================================================================= */
 
-static void connect_to_server_on_join_system(r::ecs::EventWriter<r::net::NetworkConnectEvent> connect_writer)
+static void connect_to_server_on_join_system(r::ecs::EventWriter<r::net::NetworkConnectEvent> connect_writer,
+    r::ecs::Res<NetworkConfig> net_config)
 {
-    r::Logger::info("Player joining game, attempting to connect to server...");
-    connect_writer.send({.endpoint = {"127.0.0.1", 4003}, .protocol = r::net::Protocol::UDP});
+    r::Logger::info("Player joining game, attempting to connect to server at " + net_config.ptr->server_address + ":"
+        + std::to_string(net_config.ptr->server_port));
+    connect_writer.send({.endpoint = {net_config.ptr->server_address, net_config.ptr->server_port}, .protocol = r::net::Protocol::UDP});
 }
 
 static void spawn_player_system(r::ecs::Commands &commands, r::ecs::ResMut<r::Meshes> meshes)

@@ -19,6 +19,7 @@
 
 #include <R-Engine/Application.hpp>
 #include <R-Engine/Core/Backend.hpp>
+#include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/Plugins/DefaultPlugins.hpp>
 #include <R-Engine/Plugins/InputPlugin.hpp>
 #include <R-Engine/Plugins/NetworkPlugin.hpp>
@@ -28,6 +29,8 @@
 
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
+#include <string>
 
 /**
  * @brief Disables the default ESC key behavior for closing the window.
@@ -162,6 +165,52 @@ static void setup_levels_system(r::ecs::Commands &commands)
     commands.insert_resource(CurrentLevel{0}); /* Start at level 0 */
 }
 
+/**
+ * @brief (STARTUP) Loads network settings from `network.cfg`.
+ * @details If the file doesn't exist, it creates it with default values.
+ * This allows players to configure the server address and port externally.
+ */
+static void load_network_config_system(r::ecs::Commands &commands)
+{
+    NetworkConfig config;
+    const std::string filename = "network.cfg";
+    std::ifstream config_file(filename);
+
+    if (config_file.is_open()) {
+        std::string line;
+        while (std::getline(config_file, line)) {
+            std::string key;
+            std::string value;
+            size_t separator_pos = line.find('=');
+            if (separator_pos != std::string::npos) {
+                key = line.substr(0, separator_pos);
+                value = line.substr(separator_pos + 1);
+
+                if (key == "address") {
+                    config.server_address = value;
+                } else if (key == "port") {
+                    try {
+                        config.server_port = static_cast<unsigned short>(std::stoi(value));
+                    } catch (...) {
+                        /* Keep default port if parsing fails */
+                    }
+                }
+            }
+        }
+        r::Logger::info("Loaded network config from " + filename);
+    } else {
+        // File doesn't exist, create it with defaults
+        std::ofstream new_config_file(filename);
+        if (new_config_file.is_open()) {
+            new_config_file << "address=" << config.server_address << std::endl;
+            new_config_file << "port=" << config.server_port << std::endl;
+            r::Logger::info(filename + " not found. Created with default settings.");
+        }
+    }
+
+    commands.insert_resource(config);
+}
+
 int main()
 {
     /* Seed random for enemy spawn positions */
@@ -203,6 +252,7 @@ int main()
 
         /* Add the remaining core setup */
         .add_systems<disable_escape_key_system>(r::Schedule::STARTUP)
+        .add_systems<load_network_config_system>(r::Schedule::STARTUP)
         .add_systems<setup_core_game_system>(r::Schedule::STARTUP)
         .add_systems<setup_levels_system>(r::Schedule::STARTUP)
 

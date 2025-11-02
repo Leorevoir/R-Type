@@ -13,6 +13,11 @@ struct MenuButton {
         Action action = Action::None;
 };
 
+struct OnlineMenuButton {
+        enum class Action { None, Connect, Back };
+        Action action = Action::None;
+};
+
 struct PauseMenuButton {
         enum class Action { None, Resume, Options, BackToMenu };
         Action action = Action::None;
@@ -26,6 +31,8 @@ struct SettingsMenuButton {
 /* --- UI Root Marker Components --- */
 
 struct MenuRoot {
+};
+struct OnlineMenuRoot {
 };
 struct PauseRoot {
 };
