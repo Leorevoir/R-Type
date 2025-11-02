@@ -250,7 +250,7 @@ int main()
         .add_plugins(EnemyPlugin{})
         .add_plugins(GameplayPlugin{})
         .add_plugins(CombatPlugin{})
-        .add_plugins(DebugPlugin{})
+        // .add_plugins(DebugPlugin{})
 
         /* Add the remaining core setup */
         .add_systems<disable_escape_key_system>(r::Schedule::STARTUP)
