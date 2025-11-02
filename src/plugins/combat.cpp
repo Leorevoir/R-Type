@@ -8,6 +8,8 @@
 #include <R-Engine/ECS/Event.hpp>
 #include <R-Engine/ECS/Query.hpp>
 #include <R-Engine/ECS/RunConditions.hpp>
+#include <R-Engine/Plugins/AudioPlugin.hpp>
+#include <R-Engine/Core/Filepath.hpp>
 
 #include <components/common.hpp>
 #include <components/enemy.hpp>
@@ -30,6 +32,58 @@ static void handle_entity_death(r::ecs::Commands &commands, r::ecs::EventReader<
 {
     for (const auto &event : reader) {
         commands.despawn(event.entity);
+    }
+}
+
+/* Resource to hold explosion SFX handle */
+struct ExplosionSfxResource {
+    r::AudioHandle handle = r::AudioInvalidHandle;
+};
+
+/* Load explosion sound at startup */
+static void explosion_sfx_startup(r::ecs::ResMut<r::AudioManager> audio, r::ecs::ResMut<ExplosionSfxResource> res)
+{
+    if (res.ptr->handle != r::AudioInvalidHandle)
+        return;
+    const std::string &path = r::path::get("assets/sounds/explosion.mp3");
+    const auto handle = audio.ptr->load(path);
+    if (handle == r::AudioInvalidHandle) {
+        r::Logger::warn("explosion_sfx_startup: failed to load " + path);
+        return;
+    }
+    res.ptr->handle = handle;
+    r::Logger::info(std::string{"explosion_sfx_startup: explosion handle="} + std::to_string(handle));
+}
+
+/* Play explosion when an Enemy or Boss dies. Runs before actual despawn to be able to query components. */
+static void play_explosion_on_death(r::ecs::Commands &commands, r::ecs::EventReader<EntityDiedEvent> reader,
+    r::ecs::Res<ExplosionSfxResource> explosion_res,
+    r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::With<Enemy>> enemy_query,
+    r::ecs::Query<r::ecs::Ref<r::GlobalTransform3d>, r::ecs::With<Boss>> boss_query)
+{
+    if (explosion_res.ptr->handle == r::AudioInvalidHandle) {
+        return; /* nothing to play */
+    }
+
+    for (const auto &evt : reader) {
+        r::ecs::Entity dead = evt.entity;
+
+        /* Check enemies */
+        for (auto it = enemy_query.begin(); it != enemy_query.end(); ++it) {
+            if (it.entity() == dead) {
+                /* spawn a short-lived audio player */
+                commands.spawn(r::AudioPlayer{explosion_res.ptr->handle}, r::AudioSink{}, TimedDespawn{.timer = 1.0f});
+                break;
+            }
+        }
+
+        /* Check bosses */
+        for (auto it = boss_query.begin(); it != boss_query.end(); ++it) {
+            if (it.entity() == dead) {
+                commands.spawn(r::AudioPlayer{explosion_res.ptr->handle}, r::AudioSink{}, TimedDespawn{.timer = 1.0f});
+                break;
+            }
+        }
     }
 }
 
@@ -398,7 +452,8 @@ static void reset_level_progress_system(r::ecs::ResMut<CurrentLevel> current_lev
 
 void CombatPlugin::build(r::Application &app)
 {
-    app.add_systems<reset_level_progress_system>(r::OnTransition{GameState::MainMenu, GameState::EnemiesBattle})
+    app.insert_resource(ExplosionSfxResource{})
+    .add_systems<reset_level_progress_system>(r::OnTransition{GameState::MainMenu, GameState::EnemiesBattle})
         .add_systems<reset_level_progress_system>(r::OnTransition{GameState::GameOver, GameState::EnemiesBattle})
         .add_systems<reset_level_progress_system>(r::OnTransition{GameState::YouWin, GameState::EnemiesBattle})
 
@@ -408,9 +463,13 @@ void CombatPlugin::build(r::Application &app)
         .add_systems<despawn_offscreen_system>(r::Schedule::UPDATE)
         .add_systems<timed_despawn_system>(r::Schedule::UPDATE)
 
-        /* New event handler for despawning. Only runs when events are present. */
-        .add_systems<handle_entity_death>(r::Schedule::UPDATE)
-        .run_if<r::run_conditions::on_event<EntityDiedEvent>>()
+    /* Load explosion SFX and play on death before despawn */
+    .add_systems<explosion_sfx_startup>(r::Schedule::STARTUP)
+    .add_systems<play_explosion_on_death>(r::Schedule::UPDATE)
+    .run_if<r::run_conditions::on_event<EntityDiedEvent>>()
+    /* New event handler for despawning. Only runs when events are present. */
+    .add_systems<handle_entity_death>(r::Schedule::UPDATE)
+    .run_if<r::run_conditions::on_event<EntityDiedEvent>>()
 
         /* The collision systems now only send events */
         .add_systems<collision_system, player_collision_system, player_bullet_collision_system, force_bullet_collision_system,

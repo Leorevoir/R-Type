@@ -8,6 +8,8 @@
 #include <R-Engine/ECS/Query.hpp>
 #include <R-Engine/ECS/RunConditions.hpp>
 #include <R-Engine/Plugins/MeshPlugin.hpp>
+#include <R-Engine/Plugins/AudioPlugin.hpp>
+#include <R-Engine/Core/Filepath.hpp>
 #include <string>
 
 #include <components/common.hpp>
@@ -84,6 +86,47 @@ static void setup_missile_assets_system(r::ecs::Commands &commands, r::ecs::ResM
     commands.insert_resource(bullet_assets);
 }
 
+/* Tag component for background music entity so we can stop/remove it on exit */
+struct BackgroundMusicTag {};
+
+static void setup_background_music_system(r::ecs::Commands &commands, r::ecs::ResMut<r::AudioManager> audio,
+    r::ecs::Query<r::ecs::With<BackgroundMusicTag>> existing)
+{
+    /* If a background music entity already exists, don't spawn another one. */
+    for (auto it = existing.begin(); it != existing.end(); ++it) {
+        return;
+    }
+
+    const std::string &path = r::path::get("assets/sounds/theme.mp3");
+    const auto handle = audio.ptr->load(path);
+    if (handle == r::AudioInvalidHandle) {
+        r::Logger::warn("Failed to load " + path);
+        return;
+    }
+    r::Logger::info(std::string{"Background music handle="} + std::to_string(handle));
+
+    /* Spawn a persistent music entity with AudioPlayer + AudioSink to play the theme */
+    commands.spawn(BackgroundMusicTag{}, r::AudioPlayer{handle}, r::AudioSink{});
+}
+
+static void pause_background_music_system(r::ecs::Query<r::ecs::Mut<r::AudioSink>, r::ecs::With<BackgroundMusicTag>> query)
+{
+    for (auto [sink, _] : query) {
+        r::Logger::info("Pausing background music (AudioSink) - was_playing=" + std::to_string(sink.ptr->is_playing()));
+        sink.ptr->pause();
+        r::Logger::info("Background music paused - is_playing=" + std::to_string(sink.ptr->is_playing()));
+    }
+}
+
+static void resume_background_music_system(r::ecs::Query<r::ecs::Mut<r::AudioSink>, r::ecs::With<BackgroundMusicTag>> query)
+{
+    for (auto [sink, _] : query) {
+        r::Logger::info("Resuming background music (AudioSink) - was_playing=" + std::to_string(sink.ptr->is_playing()));
+        sink.ptr->play();
+        r::Logger::info("Background music resumed - is_playing=" + std::to_string(sink.ptr->is_playing()));
+    }
+}
+
 void GameplayPlugin::build(r::Application &app)
 {
     app.insert_resource(EnemySpawnTimer{})
@@ -92,8 +135,17 @@ void GameplayPlugin::build(r::Application &app)
         .add_systems<movement_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
         .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
-        .add_systems<setup_missile_assets_system>(r::OnEnter{GameState::EnemiesBattle})
-        .run_unless<run_conditions::is_resuming_from_pause>()
+    .add_systems<setup_missile_assets_system>(r::OnEnter{GameState::EnemiesBattle})
+    .run_unless<run_conditions::is_resuming_from_pause>()
+
+    /* Background music: load & play on entering gameplay, pause on pause/menu, resume on re-entering gameplay */
+    .add_systems<setup_background_music_system>(r::OnEnter{GameState::EnemiesBattle})
+    .run_unless<run_conditions::is_resuming_from_pause>()
+    /* Resume music should run even when resuming from pause */
+    .add_systems<resume_background_music_system>(r::OnEnter{GameState::EnemiesBattle})
+    .add_systems<pause_background_music_system>(r::OnEnter{GameState::Paused})
+    .add_systems<pause_background_music_system>(r::OnEnter{GameState::MainMenu})
+    .add_systems<pause_background_music_system>(r::OnEnter{GameState::SettingsMenu})
 
         .add_systems<setup_level_timers_system>(r::OnEnter{GameState::EnemiesBattle})
         .run_unless<run_conditions::is_resuming_from_pause>()
