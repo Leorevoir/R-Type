@@ -1,0 +1,571 @@
+#include "plugins/settings.hpp"
+#include <R-Engine/Application.hpp>
+#include <R-Engine/Core/Backend.hpp>
+#include <R-Engine/Core/Logger.hpp>
+#include <R-Engine/ECS/Command.hpp>
+#include <R-Engine/ECS/Query.hpp>
+#include <R-Engine/ECS/RunConditions.hpp>
+#include <R-Engine/Plugins/PostProcessingPlugin.hpp>
+#include <R-Engine/Plugins/UiPlugin.hpp>
+#include <R-Engine/Plugins/WindowPlugin.hpp>
+#include <R-Engine/UI/Button.hpp>
+#include <R-Engine/UI/Components.hpp>
+#include <R-Engine/UI/Events.hpp>
+#include <R-Engine/UI/Text.hpp>
+#include <R-Engine/UI/Theme.hpp>
+
+#include <components/ui.hpp>
+#include <resources/ui_state.hpp>
+#include <resources/video_settings.hpp>
+#include <state/game_state.hpp>
+#include <state/settings_state.hpp>
+#include <string>
+
+static void build_video_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<SettingsContentArea>> query)
+{
+    if (query.size() == 0)
+        return;
+    auto content_area_entity = query.begin().entity();
+
+    cmds.entity(content_area_entity).with_children([&](r::ecs::ChildBuilder &parent) {
+        parent
+            .spawn(VideoSettingsRoot{}, r::UiNode{},
+                r::Style{
+                    .width_pct = 100.f,
+                    .height_pct = 100.f,
+                    .direction = r::LayoutDirection::Column,
+                    .justify = r::JustifyContent::Start,
+                    .align = r::AlignItems::Start,
+                    .gap = 10.f,
+                },
+                r::ComputedLayout{}, r::Visibility::Visible)
+            .with_children([&](r::ecs::ChildBuilder &content) {
+                auto create_row = [&](const std::string &label, auto component_tag, const std::string &initial_value) {
+                    /* Each row is a container */
+                    content
+                        .spawn(r::UiNode{},
+                            r::Style{.height = 40.f,
+                                .width_pct = 100.f,
+                                .direction = r::LayoutDirection::Row,
+                                .justify = r::JustifyContent::Start,
+                                .align = r::AlignItems::Center},
+                            r::ComputedLayout{}, r::Visibility::Visible)
+                        .with_children([&](r::ecs::ChildBuilder &row) {
+                            /* Left column: Label (takes up 60% of the row's width) */
+                            row.spawn(r::UiNode{}, r::Style{.width_pct = 60.f, .align = r::AlignItems::Center},
+                                r::UiText{.content = label, .color = r::Color{200, 230, 235, 255}}, r::ComputedLayout{},
+                                r::Visibility::Visible);
+
+                            /* Right column: Button (takes up 40% of the row's width) */
+                            row.spawn(component_tag, r::UiNode{}, r::UiButton{},
+                                r::Style{
+                                    .height = 35.f,
+                                    .width_pct = 40.f,
+                                    .justify = r::JustifyContent::Center,
+                                    .align = r::AlignItems::Center,
+                                },
+                                r::UiText{.content = initial_value}, r::ComputedLayout{}, r::Visibility::Visible);
+                        });
+                };
+
+                create_row("Display Mode", DisplayModeDropdown{}, "Windowed");
+                create_row("Resolution", ResolutionDropdown{}, "1280x720");
+                create_row("V-Sync", VSyncToggle{}, "On");
+                create_row("Framerate Limit", FramerateLimitSlider{}, "60");
+                create_row("Post-Processing", PostProcessingToggle{}, "Off");
+            });
+    });
+}
+
+static void cleanup_video_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<VideoSettingsRoot>> query)
+{
+    for (auto it = query.begin(); it != query.end(); ++it) {
+        cmds.despawn(it.entity());
+    }
+}
+
+static void build_audio_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<SettingsContentArea>> query)
+{
+    if (query.size() == 0)
+        return;
+    auto content_area_entity = query.begin().entity();
+    cmds.entity(content_area_entity).with_children([&](r::ecs::ChildBuilder &parent) {
+        parent.spawn(AudioSettingsRoot{}, r::UiNode{}, r::UiText{.content = "Audio Settings Here"}, r::Style{}, r::ComputedLayout{},
+            r::Visibility::Visible);
+    });
+}
+
+static void cleanup_audio_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<AudioSettingsRoot>> query)
+{
+    for (auto it = query.begin(); it != query.end(); ++it) {
+        cmds.despawn(it.entity());
+    }
+}
+
+static void build_controls_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<SettingsContentArea>> query)
+{
+    if (query.size() == 0)
+        return;
+    auto content_area_entity = query.begin().entity();
+    cmds.entity(content_area_entity).with_children([&](r::ecs::ChildBuilder &parent) {
+        parent.spawn(ControlsSettingsRoot{}, r::UiNode{}, r::UiText{.content = "Controls Settings Here"}, r::Style{}, r::ComputedLayout{},
+            r::Visibility::Visible);
+    });
+}
+
+static void cleanup_controls_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<ControlsSettingsRoot>> query)
+{
+    for (auto it = query.begin(); it != query.end(); ++it) {
+        cmds.despawn(it.entity());
+    }
+}
+
+static void build_accessibility_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<SettingsContentArea>> query)
+{
+    if (query.size() == 0)
+        return;
+    auto content_area_entity = query.begin().entity();
+
+    cmds.entity(content_area_entity).with_children([&](r::ecs::ChildBuilder &parent) {
+        parent
+            .spawn(AccessibilitySettingsRoot{}, r::UiNode{},
+                r::Style{
+                    .width_pct = 100.f,
+                    .height_pct = 100.f,
+                    .direction = r::LayoutDirection::Column,
+                    .justify = r::JustifyContent::Start,
+                    .align = r::AlignItems::Start,
+                    .gap = 10.f,
+                },
+                r::ComputedLayout{}, r::Visibility::Visible)
+            .with_children([&](r::ecs::ChildBuilder &content) {
+                /* Helper lambda */
+                auto create_daltonism_option_row = [&](const std::string &label, r::PostProcessingState effect) {
+                    /* 1. Create the row container node */
+                    content
+                        .spawn(r::UiNode{},
+                            r::Style{
+                                .height = 40.f,
+                                .width_pct = 100.f,
+                                .direction = r::LayoutDirection::Row,
+                                .justify = r::JustifyContent::Start,
+                                .align = r::AlignItems::Center,
+                            },
+                            r::ComputedLayout{}, r::Visibility::Visible)
+                        .with_children([&](r::ecs::ChildBuilder &row) {
+                            /* 2. Spawn the button inside the row */
+                            row.spawn(DaltonismButton{effect}, r::UiNode{}, r::UiButton{},
+                                r::Style{
+                                    .height = 35.f,
+                                    .width_pct = 80.f, /* Adjust width as needed */
+                                    .justify = r::JustifyContent::Center,
+                                    .align = r::AlignItems::Center,
+                                },
+                                r::UiText{.content = label}, /* Text is a component of the button */
+                                r::ComputedLayout{}, r::Visibility::Visible);
+                        });
+                };
+
+                /* Create rows for each mode */
+                create_daltonism_option_row("Default", r::PostProcessingState::Disabled);
+                create_daltonism_option_row("Protanopia (Red-Green)", r::PostProcessingState::Protanopia);
+                create_daltonism_option_row("Deuteranopia (Red-Green)", r::PostProcessingState::Deuteranopia);
+                create_daltonism_option_row("Tritanopia (Blue-Yellow)", r::PostProcessingState::Tritanopia);
+            });
+    });
+}
+
+static void cleanup_accessibility_settings_panel(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<AccessibilitySettingsRoot>> query)
+{
+    for (auto it = query.begin(); it != query.end(); ++it) {
+        cmds.despawn(it.entity());
+    }
+}
+
+static void enter_settings_menu_system(r::ecs::ResMut<r::NextState<SettingsState>> next_settings_state)
+{
+    next_settings_state.ptr->set(SettingsState::Video);
+}
+
+static void exit_settings_menu_system(r::ecs::ResMut<r::NextState<SettingsState>> next_settings_state)
+{
+    next_settings_state.ptr->set(SettingsState::Hidden);
+}
+
+static void build_settings_menu(r::ecs::Commands &cmds)
+{
+    /* Root: Row with sidebar (left) and content (right) */
+    cmds.spawn(SettingsRoot{}, r::UiNode{},
+            r::Style{
+                .width_pct = 100.f,
+                .height_pct = 100.f,
+                .background = r::Color{8, 8, 10, 255}, /* Dark background */
+                .direction = r::LayoutDirection::Row,
+            },
+            r::ComputedLayout{}, r::Visibility::Visible)
+        .with_children([&](r::ecs::ChildBuilder &parent) {
+            /* --- Left Sidebar --- */
+            parent
+                .spawn(r::UiNode{},
+                    r::Style{
+                        .width = 220.f,
+                        .height_pct = 100.f,
+                        .background = r::Color{14, 14, 16, 255},
+                        .padding = 20.f,
+                        .direction = r::LayoutDirection::Column,
+                        .justify = r::JustifyContent::SpaceBetween,
+                        .align = r::AlignItems::Center,
+                        .gap = 8.f,
+                    },
+                    r::ComputedLayout{}, r::Visibility::Visible)
+                .with_children([&](r::ecs::ChildBuilder &side) {
+                    /* Container for top buttons */
+                    side.spawn(r::UiNode{},
+                            r::Style{.width_pct = 100.f,
+                                .direction = r::LayoutDirection::Column,
+                                .align = r::AlignItems::Center,
+                                .gap = 8.f},
+                            r::ComputedLayout{}, r::Visibility::Visible)
+                        .with_children([&](r::ecs::ChildBuilder &col) {
+                            /* Helper */
+                            auto create_tab = [&](const std::string &text, SettingsMenuButton::Action action, float font_size = 20.f) {
+                                col.spawn(r::UiNode{}, r::UiButton{}, SettingsMenuButton{action},
+                                    r::Style{
+                                        .width = 180.f,
+                                        .height = 80.f,
+                                        .justify = r::JustifyContent::Center,
+                                        .align = r::AlignItems::Center,
+                                    },
+                                    r::UiText{.content = text, .font_size = static_cast<int>(font_size), .font_path = {}},
+                                    r::ComputedLayout{}, r::Visibility::Visible);
+                            };
+                            create_tab("Video", SettingsMenuButton::Action::Video);
+                            create_tab("Audio", SettingsMenuButton::Action::Audio);
+                            create_tab("Controls", SettingsMenuButton::Action::Controls);
+                            create_tab("Accessibility", SettingsMenuButton::Action::Accessibility, 18.f);
+                        });
+
+                    /* "Back" button at the bottom */
+                    side.spawn(r::UiNode{}, r::UiButton{}, SettingsMenuButton{SettingsMenuButton::Action::Back},
+                        r::Style{
+                            .width = 180.f,
+                            .height = 60.f,
+                            .justify = r::JustifyContent::Center,
+                            .align = r::AlignItems::Center,
+                        },
+                        r::UiText{.content = std::string("Back"), .font_size = 20, .font_path = {}}, r::ComputedLayout{},
+                        r::Visibility::Visible);
+                });
+
+            /* --- Right Content Panel --- */
+            parent
+                .spawn(r::UiNode{},
+                    r::Style{
+                        .height_pct = 100.f,
+                        .padding = 20.f,
+                        .direction = r::LayoutDirection::Column,
+                        .justify = r::JustifyContent::Start,
+                        .align = r::AlignItems::Start,
+                        .gap = 12.f,
+                    },
+                    r::ComputedLayout{}, r::Visibility::Visible)
+                .with_children([&](r::ecs::ChildBuilder &content) {
+                    /* Title that displays the current tab */
+                    content.spawn(r::UiNode{}, SettingsTitleText{}, r::Style{.height = 56.f, .justify = r::JustifyContent::Center},
+                        r::UiText{.content = std::string("Video"), .font_size = 28, .color = r::Color{200, 230, 235, 255}, .font_path = {}},
+                        r::ComputedLayout{}, r::Visibility::Visible);
+                    /* Content area that holds the specific settings panels */
+                    content.spawn(SettingsContentArea{}, r::UiNode{},
+                        r::Style{
+                            .width = 700.f,
+                            .height_pct = 100.f,
+                            .background = r::Color{12, 12, 14, 255},
+                            .padding = 12.f,
+                        },
+                        r::ComputedLayout{}, r::Visibility::Visible);
+                    /* Note: The content of this area is now spawned by the SettingsState OnEnter systems */
+                });
+        });
+}
+
+static void cleanup_settings_menu(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<SettingsRoot>> query)
+{
+    for (auto it = query.begin(); it != query.end(); ++it) {
+        cmds.despawn(it.entity());
+    }
+}
+
+static void settings_sidebar_handler(r::ecs::EventReader<r::UiClick> click_reader, r::ecs::Query<r::ecs::Ref<SettingsMenuButton>> buttons,
+    r::ecs::Query<r::ecs::Mut<r::UiText>, r::ecs::With<SettingsTitleText>> title, r::ecs::ResMut<r::NextState<GameState>> next_game_state,
+    r::ecs::ResMut<r::NextState<SettingsState>> next_settings_state, r::ecs::Res<PreviousGameState> prev_game_state)
+{
+    for (const auto &click : click_reader) {
+        if (click.entity == r::ecs::NULL_ENTITY)
+            continue;
+
+        for (auto it = buttons.begin(); it != buttons.end(); ++it) {
+            if (it.entity() != click.entity)
+                continue;
+
+            auto [btn] = *it;
+            std::string new_label;
+
+            switch (btn.ptr->action) {
+                case SettingsMenuButton::Action::Video:
+                    new_label = "Video";
+                    next_settings_state.ptr->set(SettingsState::Video);
+                    break;
+                case SettingsMenuButton::Action::Audio:
+                    new_label = "Audio";
+                    next_settings_state.ptr->set(SettingsState::Audio);
+                    break;
+                case SettingsMenuButton::Action::Controls:
+                    new_label = "Controls";
+                    next_settings_state.ptr->set(SettingsState::Controls);
+                    break;
+                case SettingsMenuButton::Action::Accessibility:
+                    new_label = "Accessibility";
+                    next_settings_state.ptr->set(SettingsState::Accessibility);
+                    break;
+                case SettingsMenuButton::Action::Back:
+                    r::Logger::info("Settings: Back button clicked. Returning to previous state.");
+                    next_game_state.ptr->set(prev_game_state.ptr->state);
+                    return;
+                default:
+                    break;
+            }
+
+            if (!new_label.empty()) {
+                for (auto [text, _] : title) {
+                    text.ptr->content = new_label;
+                }
+                r::Logger::info("Settings tab changed to: " + new_label);
+            }
+            return;
+        }
+    }
+}
+
+static void sync_video_settings_ui(r::ecs::Res<VideoSettings> settings,
+    r::ecs::Query<r::ecs::Mut<r::UiText>, r::ecs::With<DisplayModeDropdown>> display_mode_q,
+    r::ecs::Query<r::ecs::Mut<r::UiText>, r::ecs::With<ResolutionDropdown>> resolution_q,
+    r::ecs::Query<r::ecs::Mut<r::UiText>, r::ecs::With<VSyncToggle>> vsync_q,
+    r::ecs::Query<r::ecs::Mut<r::UiText>, r::ecs::With<FramerateLimitSlider>> framerate_q,
+    r::ecs::Query<r::ecs::Mut<r::UiText>, r::ecs::With<PostProcessingToggle>> post_processing_q)
+{
+    for (auto [text, _] : display_mode_q) {
+        switch (settings.ptr->display_mode) {
+            case DisplayMode::Fullscreen:
+                text.ptr->content = "Fullscreen";
+                break;
+            case DisplayMode::Windowed:
+                text.ptr->content = "Windowed";
+                break;
+            case DisplayMode::BorderlessWindowed:
+                text.ptr->content = "Borderless";
+                break;
+            default:
+                break;
+        }
+    }
+    for (auto [text, _] : resolution_q) {
+        text.ptr->content = std::to_string(settings.ptr->resolution.width) + "x" + std::to_string(settings.ptr->resolution.height);
+    }
+    for (auto [text, _] : vsync_q) {
+        text.ptr->content = settings.ptr->vsync ? "On" : "Off";
+    }
+    for (auto [text, _] : framerate_q) {
+        text.ptr->content = settings.ptr->framerate_limit == 0 ? "Uncapped" : std::to_string(settings.ptr->framerate_limit);
+    }
+    for (auto [text, _] : post_processing_q) {
+        text.ptr->content = settings.ptr->post_processing_effects ? "On" : "Off";
+    }
+}
+
+static void update_resolution_button_state(r::ecs::Res<VideoSettings> settings,
+    r::ecs::Query<r::ecs::Mut<r::UiButton>, r::ecs::With<ResolutionDropdown>> resolution_button_q)
+{
+    for (auto [button, _] : resolution_button_q) {
+        button.ptr->disabled = (settings.ptr->display_mode != DisplayMode::Windowed);
+    }
+}
+
+static void video_settings_button_handler(r::ecs::EventReader<r::UiClick> click_reader, r::ecs::ResMut<VideoSettings> settings,
+    r::ecs::Query<r::ecs::With<DisplayModeDropdown>> display_mode_q, r::ecs::Query<r::ecs::With<ResolutionDropdown>> resolution_q,
+    r::ecs::Query<r::ecs::With<VSyncToggle>> vsync_q, r::ecs::Query<r::ecs::With<FramerateLimitSlider>> framerate_q,
+    r::ecs::Query<r::ecs::With<PostProcessingToggle>> post_processing_q)
+{
+    for (const auto &click : click_reader) {
+        auto it_display = display_mode_q.begin();
+        if (it_display != display_mode_q.end() && it_display.entity() == click.entity) {
+            settings.ptr->display_mode = static_cast<DisplayMode>((static_cast<int>(settings.ptr->display_mode) + 1) % 3);
+            return;
+        }
+
+        auto it_res = resolution_q.begin();
+        if (it_res != resolution_q.end() && it_res.entity() == click.entity) {
+            if (settings.ptr->resolution.width == 1280)
+                settings.ptr->resolution = {1920, 1080};
+            else if (settings.ptr->resolution.width == 1920)
+                settings.ptr->resolution = {2560, 1440};
+            else
+                settings.ptr->resolution = {1280, 720};
+            return;
+        }
+
+        auto it_vsync = vsync_q.begin();
+        if (it_vsync != vsync_q.end() && it_vsync.entity() == click.entity) {
+            settings.ptr->vsync = !settings.ptr->vsync;
+            return;
+        }
+
+        auto it_fps = framerate_q.begin();
+        if (it_fps != framerate_q.end() && it_fps.entity() == click.entity) {
+            if (settings.ptr->framerate_limit == 60)
+                settings.ptr->framerate_limit = 120;
+            else if (settings.ptr->framerate_limit == 120)
+                settings.ptr->framerate_limit = 144;
+            else if (settings.ptr->framerate_limit == 144)
+                settings.ptr->framerate_limit = 0; /* Uncapped */
+            else
+                settings.ptr->framerate_limit = 60;
+            return;
+        }
+
+        auto it_pp = post_processing_q.begin();
+        if (it_pp != post_processing_q.end() && it_pp.entity() == click.entity) {
+            settings.ptr->post_processing_effects = !settings.ptr->post_processing_effects;
+            r::Logger::info("Video Toggle Click: VideoSettings.post_processing_effects is now "
+                + std::string(settings.ptr->post_processing_effects ? "ON" : "OFF"));
+            return;
+        }
+    }
+}
+
+static void accessibility_settings_button_handler(r::ecs::EventReader<r::UiClick> click_reader,
+    r::ecs::Query<r::ecs::Ref<DaltonismButton>> buttons, r::ecs::ResMut<VideoSettings> settings)
+{
+    for (const auto &click : click_reader) {
+        if (click.entity == r::ecs::NULL_ENTITY)
+            continue;
+
+        for (auto it = buttons.begin(); it != buttons.end(); ++it) {
+            if (it.entity() == click.entity) {
+                auto [btn] = *it;
+                settings.ptr->selected_effect = btn.ptr->effect;
+                settings.ptr->post_processing_effects = (btn.ptr->effect != r::PostProcessingState::Disabled);
+
+                r::Logger::info(
+                    "Accessibility Click: Set VideoSettings.selected_effect to " + std::to_string(static_cast<int>(btn.ptr->effect)));
+                return;
+            }
+        }
+    }
+}
+
+static void apply_live_video_settings(r::ecs::Res<VideoSettings> settings, r::ecs::ResMut<r::PostProcessingPluginConfig> pp_config)
+{
+    r::PostProcessingState desired_state =
+        settings.ptr->post_processing_effects ? settings.ptr->selected_effect : r::PostProcessingState::Disabled;
+
+    if (pp_config.ptr->state != desired_state) {
+        r::Logger::info("Applying live settings: Setting PostProcessingPluginConfig.state from "
+            + std::to_string(static_cast<int>(pp_config.ptr->state)) + " to " + std::to_string(static_cast<int>(desired_state)));
+        pp_config.ptr->state = desired_state;
+    }
+}
+
+static void apply_all_video_settings_on_exit(r::ecs::Res<VideoSettings> settings, r::ecs::ResMut<r::WindowPluginConfig> window_config,
+    r::ecs::ResMut<r::PostProcessingPluginConfig> pp_config)
+{
+    r::Logger::info("Applying all final video settings on settings menu exit.");
+
+    /* VSync */
+    if (settings.ptr->vsync)
+        window_config.ptr->settings |= r::WindowPluginSettings(FLAG_VSYNC_HINT);
+    else
+        window_config.ptr->settings &= ~r::WindowPluginSettings(FLAG_VSYNC_HINT);
+
+    /* Display Mode & Resolution */
+    if (settings.ptr->display_mode == DisplayMode::Fullscreen) {
+        window_config.ptr->settings |= r::WindowPluginSettings::MAXIMIZED;
+    } else {
+        window_config.ptr->settings &= ~r::WindowPluginSettings::MAXIMIZED;
+    }
+
+    if (settings.ptr->display_mode == DisplayMode::Windowed) {
+        window_config.ptr->settings |= r::WindowPluginSettings::DECORATED;
+        window_config.ptr->size = settings.ptr->resolution;
+    } else if (settings.ptr->display_mode == DisplayMode::BorderlessWindowed) {
+        window_config.ptr->settings &= ~r::WindowPluginSettings::DECORATED;
+    }
+
+    /* Framerate */
+    window_config.ptr->frame_per_second = static_cast<u32>(settings.ptr->framerate_limit);
+
+    /* Post Processing */
+    r::PostProcessingState desired_state =
+        settings.ptr->post_processing_effects ? settings.ptr->selected_effect : r::PostProcessingState::Disabled;
+    if (pp_config.ptr->state != desired_state) {
+        r::Logger::info("Applying final PP state: " + std::to_string(static_cast<int>(desired_state)));
+        pp_config.ptr->state = desired_state;
+    }
+}
+
+void SettingsPlugin::build(r::Application &app)
+{
+    app.insert_resource(VideoSettings{})
+        .init_state(SettingsState::Hidden)
+
+        /* Systems for the main settings menu frame */
+        .add_systems<build_settings_menu>(r::OnEnter{GameState::SettingsMenu})
+        .add_systems<cleanup_settings_menu>(r::OnExit{GameState::SettingsMenu})
+
+        /* Systems to manage the SettingsState based on GameState */
+        .add_systems<enter_settings_menu_system>(r::OnEnter{GameState::SettingsMenu})
+        .add_systems<exit_settings_menu_system>(r::OnExit{GameState::SettingsMenu})
+
+        /* Systems that build/destroy the content panels based on SettingsState */
+        .add_systems<build_video_settings_panel>(r::OnEnter{SettingsState::Video})
+        .add_systems<cleanup_video_settings_panel>(r::OnExit{SettingsState::Video})
+        .add_systems<build_audio_settings_panel>(r::OnEnter{SettingsState::Audio})
+        .add_systems<cleanup_audio_settings_panel>(r::OnExit{SettingsState::Audio})
+        .add_systems<build_controls_settings_panel>(r::OnEnter{SettingsState::Controls})
+        .add_systems<cleanup_controls_settings_panel>(r::OnExit{SettingsState::Controls})
+        .add_systems<build_accessibility_settings_panel>(r::OnEnter{SettingsState::Accessibility})
+        .add_systems<cleanup_accessibility_settings_panel>(r::OnExit{SettingsState::Accessibility})
+
+        /* Apply ALL video settings when we leave the settings menu entirely */
+        .add_systems<apply_all_video_settings_on_exit>(r::OnExit{GameState::SettingsMenu})
+
+        /* Apply settings for live preview while in the menu */
+        .add_systems<apply_live_video_settings>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::SettingsMenu>>()
+
+        /* Handle sidebar clicks to change SettingsState */
+        .add_systems<settings_sidebar_handler>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::SettingsMenu>>()
+        .run_and<r::run_conditions::on_event<r::UiClick>>()
+
+        /* Handle clicks on the video settings widgets themselves */
+        .add_systems<video_settings_button_handler>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::SettingsMenu>>()
+        .run_and<r::run_conditions::in_state<SettingsState::Video>>()
+        .run_and<r::run_conditions::on_event<r::UiClick>>()
+
+        /* Handle clicks on the accessibility settings widgets */
+        .add_systems<accessibility_settings_button_handler>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::SettingsMenu>>()
+        .run_and<r::run_conditions::in_state<SettingsState::Accessibility>>()
+        .run_and<r::run_conditions::on_event<r::UiClick>>()
+
+        /* Sync UI text with the current settings values */
+        .add_systems<sync_video_settings_ui>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::SettingsMenu>>()
+        .run_and<r::run_conditions::in_state<SettingsState::Video>>()
+
+        /* Update button disabled state based on other settings */
+        .add_systems<update_resolution_button_state>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::SettingsMenu>>()
+        .run_and<r::run_conditions::in_state<SettingsState::Video>>();
+}

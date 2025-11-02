@@ -18,6 +18,7 @@
 #include <resources/assets.hpp>
 #include <resources/level.hpp>
 #include <state/game_state.hpp>
+#include <state/run_conditions.hpp>
 
 /* ================================================================================= */
 /* Constants */
@@ -288,6 +289,7 @@ void EnemyPlugin::build(r::Application &app)
         .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
 
         .add_systems<boss_spawn_system>(r::OnEnter(GameState::BossBattle))
+        .run_unless<run_conditions::is_resuming_from_pause>()
 
         .add_systems<boss_movement_vertical_patrol_system, boss_shooting_vertical_patrol_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::BossBattle>>()

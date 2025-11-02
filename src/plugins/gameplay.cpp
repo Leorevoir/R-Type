@@ -16,6 +16,7 @@
 #include <resources/game_state.hpp>
 #include <resources/level.hpp>
 #include <state/game_state.hpp>
+#include <state/run_conditions.hpp>
 
 /* ================================================================================= */
 /* Gameplay Systems */
@@ -89,9 +90,13 @@ void GameplayPlugin::build(r::Application &app)
         .insert_resource(BossSpawnTimer{})
 
         .add_systems<movement_system>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
+        .run_or<r::run_conditions::in_state<GameState::BossBattle>>()
         .add_systems<setup_missile_assets_system>(r::OnEnter{GameState::EnemiesBattle})
+        .run_unless<run_conditions::is_resuming_from_pause>()
 
         .add_systems<setup_level_timers_system>(r::OnEnter{GameState::EnemiesBattle})
+        .run_unless<run_conditions::is_resuming_from_pause>()
 
         .add_systems<setup_boss_fight_system>(r::Schedule::UPDATE)
         .run_if<r::run_conditions::in_state<GameState::EnemiesBattle>>()
