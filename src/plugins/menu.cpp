@@ -1,10 +1,12 @@
 #include "plugins/menu.hpp"
 #include "R-Engine/Components/Transform3d.hpp"
 #include <R-Engine/Application.hpp>
+#include <R-Engine/Core/Filepath.hpp>
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/ECS/Command.hpp>
 #include <R-Engine/ECS/Query.hpp>
 #include <R-Engine/ECS/RunConditions.hpp>
+#include <R-Engine/Plugins/AudioPlugin.hpp>
 #include <R-Engine/Plugins/Ui/Systems.hpp>
 #include <R-Engine/Plugins/UiPlugin.hpp>
 #include <R-Engine/UI/Button.hpp>
@@ -14,11 +16,10 @@
 #include <R-Engine/UI/InputState.hpp>
 #include <R-Engine/UI/Text.hpp>
 #include <R-Engine/UI/Theme.hpp>
-#include <R-Engine/Plugins/AudioPlugin.hpp>
-#include <R-Engine/Core/Filepath.hpp>
 
 #include <components/player.hpp>
 #include <components/ui.hpp>
+#include <resources/game_mode.hpp>
 #include <resources/game_state.hpp>
 #include <resources/ui_state.hpp>
 #include <state/game_state.hpp>
@@ -55,6 +56,7 @@ static void create_menu_button(r::ecs::ChildBuilder &parent, MenuButton::Action 
             .align = r::AlignItems::Center},
         r::UiText{
             .content = text,
+            .font_size = 22,
             .font_path = {},
         },
         r::ComputedLayout{}, r::Visibility::Visible);
@@ -167,7 +169,8 @@ static void build_main_menu(r::ecs::Commands &cmds)
             r::ComputedLayout{}, r::Visibility::Visible)
         .with_children([&](r::ecs::ChildBuilder &parent) {
             create_menu_title(parent);
-            create_menu_button(parent, MenuButton::Action::Play, "Play");
+            create_menu_button(parent, MenuButton::Action::PlayOffline, "Play Offline");
+            create_menu_button(parent, MenuButton::Action::PlayOnline, "Play Online");
             create_menu_button(parent, MenuButton::Action::Options, "Options");
             create_menu_button(parent, MenuButton::Action::Quit, "Quit");
         });
@@ -175,7 +178,7 @@ static void build_main_menu(r::ecs::Commands &cmds)
 
 static void menu_button_handler(r::ecs::EventReader<r::UiClick> click_reader, r::ecs::Query<r::ecs::Ref<MenuButton>> buttons,
     r::ecs::ResMut<r::NextState<GameState>> next_state, r::ecs::ResMut<PreviousGameState> prev_game_state,
-    r::ecs::Res<r::State<GameState>> current_state)
+    r::ecs::Res<r::State<GameState>> current_state, r::ecs::ResMut<GameMode> game_mode)
 {
     for (const auto &click : click_reader) {
         const r::ecs::Entity clicked_entity = click.entity;
@@ -193,9 +196,15 @@ static void menu_button_handler(r::ecs::EventReader<r::UiClick> click_reader, r:
         }
 
         switch (action) {
-            case MenuButton::Action::Play:
-                r::Logger::info("Starting game...");
+            case MenuButton::Action::PlayOffline:
+                r::Logger::info("Starting game in Offline mode...");
+                *game_mode.ptr = GameMode::Offline;
                 next_state.ptr->set(GameState::EnemiesBattle);
+                break;
+            case MenuButton::Action::PlayOnline:
+                r::Logger::info("Starting game in Online mode...");
+                *game_mode.ptr = GameMode::Online;
+                next_state.ptr->set(GameState::OnlineMenu);
                 break;
             case MenuButton::Action::Options:
                 r::Logger::info("Options clicked, opening settings menu...");
@@ -208,6 +217,77 @@ static void menu_button_handler(r::ecs::EventReader<r::UiClick> click_reader, r:
                 break;
             default:
                 break;
+        }
+    }
+}
+
+static void build_online_menu(r::ecs::Commands &cmds, r::ecs::Res<NetworkConfig> net_config)
+{
+    cmds.spawn(OnlineMenuRoot{}, r::UiNode{},
+            r::Style{
+                .width_pct = 100.f,
+                .height_pct = 100.f,
+                .background = r::Color{255, 255, 255, 40},
+                .direction = r::LayoutDirection::Column,
+                .justify = r::JustifyContent::Center,
+                .align = r::AlignItems::Center,
+                .gap = 15.f,
+            },
+            r::ComputedLayout{}, r::Visibility::Visible)
+        .with_children([&](r::ecs::ChildBuilder &parent) {
+            parent.spawn(r::UiNode{}, r::UiText{.content = "Connect to Server", .font_size = 48, .color = {98, 221, 255, 255}},
+                r::Style{.height = 60.f, .margin = 20.f}, r::ComputedLayout{}, r::Visibility::Visible);
+
+            parent.spawn(r::UiNode{}, r::UiText{.content = "Address: " + net_config.ptr->server_address, .font_size = 24},
+                r::Style{.height = 30.f}, r::ComputedLayout{}, r::Visibility::Visible);
+
+            parent.spawn(r::UiNode{}, r::UiText{.content = "Port: " + std::to_string(net_config.ptr->server_port), .font_size = 24},
+                r::Style{.height = 30.f, .margin = 20.f}, r::ComputedLayout{}, r::Visibility::Visible);
+
+            parent.spawn(r::UiNode{}, r::UiButton{}, OnlineMenuButton{OnlineMenuButton::Action::Connect},
+                r::Style{.width = 220.f, .height = 45.f, .justify = r::JustifyContent::Center, .align = r::AlignItems::Center},
+                r::UiText{.content = "Connect", .font_size = 22}, r::ComputedLayout{}, r::Visibility::Visible);
+
+            parent.spawn(r::UiNode{}, r::UiButton{}, OnlineMenuButton{OnlineMenuButton::Action::Back},
+                r::Style{.width = 220.f, .height = 45.f, .justify = r::JustifyContent::Center, .align = r::AlignItems::Center},
+                r::UiText{.content = "Back", .font_size = 22}, r::ComputedLayout{}, r::Visibility::Visible);
+        });
+}
+
+static void cleanup_online_menu(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::With<OnlineMenuRoot>> query)
+{
+    for (auto it = query.begin(); it != query.end(); ++it) {
+        cmds.despawn(it.entity());
+    }
+}
+
+static void online_menu_button_handler(r::ecs::EventReader<r::UiClick> click_reader, r::ecs::Query<r::ecs::Ref<OnlineMenuButton>> buttons,
+    r::ecs::ResMut<r::NextState<GameState>> next_state)
+{
+    for (const auto &click : click_reader) {
+        if (click.entity == r::ecs::NULL_ENTITY) {
+            continue;
+        }
+
+        for (auto it = buttons.begin(); it != buttons.end(); ++it) {
+            if (it.entity() != click.entity) {
+                continue;
+            }
+
+            auto [btn] = *it;
+            switch (btn.ptr->action) {
+                case OnlineMenuButton::Action::Connect:
+                    r::Logger::info("Connecting to server...");
+                    next_state.ptr->set(GameState::EnemiesBattle);
+                    break;
+                case OnlineMenuButton::Action::Back:
+                    r::Logger::info("Returning to main menu...");
+                    next_state.ptr->set(GameState::MainMenu);
+                    break;
+                default:
+                    break;
+            }
+            return;
         }
     }
 }
@@ -277,12 +357,13 @@ static void cleanup_game_over_ui(r::ecs::Commands &cmds, r::ecs::Query<r::ecs::W
 }
 
 /* Menu music tag and resource */
-struct MenuMusicTag {};
+struct MenuMusicTag {
+};
 
 /* Centralized resource tracking menu music handle + entity */
 struct MenuMusicResource {
-    r::AudioHandle handle = r::AudioInvalidHandle;
-    r::ecs::Entity entity = r::ecs::NULL_ENTITY;
+        r::AudioHandle handle = r::AudioInvalidHandle;
+        r::ecs::Entity entity = r::ecs::NULL_ENTITY;
 };
 
 /* Startup: load menu music and spawn the entity once. We then control play/pause
@@ -539,31 +620,33 @@ void MenuPlugin::build(r::Application &app)
         .insert_resource(MenuMusicResource{})
         .add_systems<setup_ui_theme>(r::Schedule::STARTUP)
 
-    /* Main Menu State */
-    .add_systems<build_main_menu>(r::OnEnter{GameState::MainMenu})
-    /* Startup menu music once at plugin start */
-    .add_systems<menu_music_startup>(r::Schedule::STARTUP)
-    /* Play/resume title theme when entering main menu */
-    .add_systems<resume_menu_music_system>(r::OnEnter{GameState::MainMenu})
-    /* Pause title theme when leaving main menu (entering other states) */
-    /* Ensure title music is stopped immediately when entering gameplay states */
-    .add_systems<stop_menu_music_immediate>(r::OnEnter{GameState::EnemiesBattle})
-    .add_systems<stop_menu_music_immediate>(r::OnEnter{GameState::BossBattle})
-    /* Also keep pause handler for other transitions */
-    .add_systems<pause_menu_music_system>(r::OnEnter{GameState::Paused})
-    .add_systems<pause_menu_music_system>(r::OnEnter{GameState::SettingsMenu})
-    .add_systems<pause_menu_music_system>(r::OnEnter{GameState::GameOver})
-    .add_systems<pause_menu_music_system>(r::OnEnter{GameState::YouWin})
-    .add_systems<pause_menu_music_system>(r::OnEnter{GameState::Paused})
-    .add_systems<pause_menu_music_system>(r::OnEnter{GameState::SettingsMenu})
-    .add_systems<pause_menu_music_system>(r::OnEnter{GameState::GameOver})
-    .add_systems<pause_menu_music_system>(r::OnEnter{GameState::YouWin})
-    .add_systems<menu_button_handler>(r::Schedule::UPDATE)
-    .run_if<r::run_conditions::on_event<r::UiClick>>()
-    /* Play/resume title theme when entering main menu */
-    /* Keep menu music entity alive across state transitions; pause/resume will control playback. */
-    .add_systems<cleanup_menu>(r::OnExit{GameState::MainMenu})
-    /* No per-frame ensure; rely on startup + explicit resume/pause on transitions */
+        /* Main Menu State */
+        .add_systems<build_main_menu>(r::OnEnter{GameState::MainMenu})
+        /* Startup menu music once at plugin start */
+        .add_systems<menu_music_startup>(r::Schedule::STARTUP)
+        /* Play/resume title theme when entering main menu */
+        .add_systems<resume_menu_music_system>(r::OnEnter{GameState::MainMenu})
+        /* Ensure title music is stopped immediately when entering gameplay states */
+        .add_systems<stop_menu_music_immediate>(r::OnEnter{GameState::EnemiesBattle})
+        .add_systems<stop_menu_music_immediate>(r::OnEnter{GameState::BossBattle})
+        /* Pause title theme when entering other states */
+        .add_systems<pause_menu_music_system>(r::OnEnter{GameState::Paused})
+        .add_systems<pause_menu_music_system>(r::OnEnter{GameState::SettingsMenu})
+        .add_systems<pause_menu_music_system>(r::OnEnter{GameState::GameOver})
+        .add_systems<pause_menu_music_system>(r::OnEnter{GameState::YouWin})
+        /* Handle button clicks in the main menu */
+        .add_systems<menu_button_handler>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::MainMenu>>()
+        .run_if<r::run_conditions::on_event<r::UiClick>>()
+        /* Cleanup the menu UI when leaving the main menu */
+        .add_systems<cleanup_menu>(r::OnExit{GameState::MainMenu})
+
+        /* Online Menu State */
+        .add_systems<build_online_menu>(r::OnEnter{GameState::OnlineMenu})
+        .add_systems<online_menu_button_handler>(r::Schedule::UPDATE)
+        .run_if<r::run_conditions::in_state<GameState::OnlineMenu>>()
+        .run_if<r::run_conditions::on_event<r::UiClick>>()
+        .add_systems<cleanup_online_menu>(r::OnExit{GameState::OnlineMenu})
 
         /* In-Game HUD */
         .add_systems<cleanup_game_hud>(r::OnEnter{GameState::EnemiesBattle})

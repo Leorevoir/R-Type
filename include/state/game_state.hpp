@@ -2,6 +2,7 @@
 
 enum class GameState {
     MainMenu,
+    OnlineMenu,
     SettingsMenu,
     Paused,
     GameOver,

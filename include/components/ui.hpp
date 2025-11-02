@@ -3,7 +3,18 @@
 #include "R-Engine/Plugins/PostProcessingPlugin.hpp"
 
 struct MenuButton {
-        enum class Action { None, Play, Options, Quit };
+        enum class Action {
+            None,
+            PlayOffline,
+            PlayOnline,
+            Options,
+            Quit,
+        };
+        Action action = Action::None;
+};
+
+struct OnlineMenuButton {
+        enum class Action { None, Connect, Back };
         Action action = Action::None;
 };
 
@@ -20,6 +31,8 @@ struct SettingsMenuButton {
 /* --- UI Root Marker Components --- */
 
 struct MenuRoot {
+};
+struct OnlineMenuRoot {
 };
 struct PauseRoot {
 };

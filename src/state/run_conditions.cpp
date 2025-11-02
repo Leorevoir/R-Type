@@ -1,5 +1,7 @@
 #include <state/run_conditions.hpp>
 
+#include <resources/game_mode.hpp>
+
 namespace run_conditions {
 
 /**
@@ -13,4 +15,13 @@ bool is_resuming_from_pause(r::ecs::Res<r::State<GameState>> state)
     return state.ptr && state.ptr->previous().has_value() && state.ptr->previous().value() == GameState::Paused;
 }
 
-} // namespace run_conditions
+/**
+ * @brief Run condition that returns true if the game is in Online mode.
+ * @details Used to enable networking-specific systems.
+ */
+bool is_online_mode(r::ecs::Res<GameMode> mode)
+{
+    return mode.ptr && *mode.ptr == GameMode::Online;
+}
+
+}// namespace run_conditions
