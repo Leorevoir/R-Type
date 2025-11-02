@@ -24,7 +24,7 @@
 #include <plugins/ui_sfx.hpp>
 #include <R-Engine/Plugins/AudioPlugin.hpp>
 
-// Player-specific SFX handles
+/* Player-specific SFX handles */
 struct PlayerSfxHandles {
     r::AudioHandle laser = r::AudioInvalidHandle;
     r::AudioHandle launch = r::AudioInvalidHandle;
@@ -256,7 +256,7 @@ static void setup_bullet_assets_system(r::ecs::Commands &commands, r::ecs::ResMu
 
     commands.insert_resource(bullet_assets);
 
-    // Load player SFX
+    /* Load player SFX */
     PlayerSfxHandles sfx;
     sfx.laser = audio.ptr->load(r::path::get("assets/sounds/laser_beam.mp3"));
     if (sfx.laser == r::AudioInvalidHandle) {

@@ -11,18 +11,18 @@
 #include <R-Engine/UI/Events.hpp>
 #include <R-Engine/UI/Button.hpp>
 
-// Simple resource to store loaded SFX handles
+/* Simple resource to store loaded SFX handles */
 struct UiSfxHandles {
     r::AudioHandle select = r::AudioInvalidHandle;
     r::AudioHandle click = r::AudioInvalidHandle;
 };
 
-// UiSfxTag / UiSfxBorn / UiSfxCounter are declared in the header so other plugins can use them
+/* UiSfxTag / UiSfxBorn / UiSfxCounter are declared in the header so other plugins can use them */
 #include <plugins/ui_sfx.hpp>
 
 static void ui_sfx_startup_load(r::ecs::ResMut<r::AudioManager> audio, r::ecs::ResMut<UiSfxHandles> sfx)
 {
-    // Load the two SFX from the project's assets folder
+    /* Load the two SFX from the project's assets folder */
     sfx.ptr->select = audio.ptr->load(r::path::get("assets/sounds/select.mp3"));
     sfx.ptr->click = audio.ptr->load(r::path::get("assets/sounds/click.mp3"));
 
@@ -35,7 +35,8 @@ static void ui_sfx_startup_load(r::ecs::ResMut<r::AudioManager> audio, r::ecs::R
     r::Logger::info(std::string{"UiSfx: handles -> select="} + std::to_string(sfx.ptr->select) + ", click=" + std::to_string(sfx.ptr->click));
 }
 
-// Spawn a short-lived audio entity when the pointer enters a UI handle (buttons are targeted by the pointer system)
+/* Spawn a short-lived audio entity when the pointer enters a UI handle
+   (buttons are targeted by the pointer system) */
 static void ui_sfx_entered_system(r::ecs::ResMut<r::UiEvents> events, r::ecs::ResMut<UiSfxHandles> sfx,
     r::ecs::Res<UiSfxCounter> counter, r::ecs::Commands &commands)
 {
@@ -47,14 +48,14 @@ static void ui_sfx_entered_system(r::ecs::ResMut<r::UiEvents> events, r::ecs::Re
     for (const auto h : events.ptr->entered) {
         if (h == r::ecs::NULL_ENTITY)
             continue;
-        // spawn an entity with an AudioPlayer + AudioSink so the AudioPlugin plays it
-        // tag it and record born frame so we keep it until next frame (guarantee audio system
-        // can detect it and call PlaySound once). We set born to current counter value.
+        /* Spawn an entity with an AudioPlayer + AudioSink so the AudioPlugin plays it.
+           Tag it and record born frame so we keep it until next frame (guarantee audio system
+           can detect it and call PlaySound once). We set born to current counter value. */
         commands.spawn(UiSfxTag{}, UiSfxBorn{counter.ptr->frame}, r::AudioPlayer{ sfx.ptr->select }, r::AudioSink{});
     }
 }
 
-// Spawn a short-lived audio entity on UI clicks
+/* Spawn a short-lived audio entity on UI clicks */
 static void ui_sfx_click_system(r::ecs::EventReader<r::UiClick> click_reader, r::ecs::ResMut<UiSfxHandles> sfx,
     r::ecs::Res<UiSfxCounter> counter, r::ecs::Commands &commands)
 {
@@ -73,8 +74,8 @@ static void ui_sfx_frame_tick(r::ecs::ResMut<UiSfxCounter> counter)
     counter.ptr->frame += 1;
 }
 
-// Cleanup transient ui sfx entities once we've advanced at least one frame so the audio system
-// had a chance to process them and start playback.
+/* Cleanup transient UI SFX entities once we've advanced at least one frame so the
+    audio system had a chance to process them and start playback. */
 static void ui_sfx_cleanup_system(r::ecs::Commands &cmds, r::ecs::Res<UiSfxCounter> counter,
     r::ecs::Query<r::ecs::Ref<UiSfxBorn>, r::ecs::With<UiSfxTag>> q)
 {
