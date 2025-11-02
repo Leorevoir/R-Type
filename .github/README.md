@@ -72,7 +72,30 @@ cd ..
 
 ### Run and play!
 
-> TODO
+After building the project, you can run the game by executing the binary:
+
+```bash
+./r-type
+```
+
+#### Controls
+
+The game supports both keyboard and gamepad controls.
+
+| Action               | Keyboard              | Gamepad (Xbox/PlayStation) |
+| -------------------- | --------------------- | -------------------------- |
+| Move                 | `W`, `A`, `S`, `D`    | Left Stick                 |
+| Fire / Charge Cannon | `Spacebar` (Tap/Hold) | `A` / `X` (Tap/Hold)       |
+| Launch/Recall Force  | `Left Shift`          | `B` / `Circle`             |
+| Pause                | `Escape`              | `Start`                    |
+
+##### Debug Controls
+
+If the `DebugPlugin` is enabled in `src/Main.cpp`, you can use the following keys to switch levels during gameplay:
+
+- `F1`: Switch to Level 1
+- `F2`: Switch to Level 2
+- `F3`: Switch to Level 3
 
 ## Graphical backend
 
