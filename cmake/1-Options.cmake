@@ -35,3 +35,8 @@ endif()
 option(ENABLE_TESTS "Enable building tests" OFF)
 
 #######################################
+
+if (MSVC)
+    add_compile_definitions(WIN32_LEAN_AND_MEAN NOMINMAX _USE_MATH_DEFINES)
+    message(STATUS "INFO: MSVC compile definitions added: WIN32_LEAN_AND_MEAN NOMINMAX _USE_MATH_DEFINES")
+endif()

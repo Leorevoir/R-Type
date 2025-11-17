@@ -1,3 +1,6 @@
+#include <R-Engine/Core/Backend.hpp>
+
+
 #include <plugins/combat.hpp>
 #include <plugins/debug.hpp>
 #include <plugins/enemy.hpp>
@@ -19,7 +22,6 @@
 #include <state/game_state.hpp>
 
 #include <R-Engine/Application.hpp>
-#include <R-Engine/Core/Backend.hpp>
 #include <R-Engine/Core/Logger.hpp>
 #include <R-Engine/Plugins/DefaultPlugins.hpp>
 #include <R-Engine/Plugins/InputPlugin.hpp>

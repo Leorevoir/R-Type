@@ -93,7 +93,7 @@ static void setup_background_music_system(r::ecs::Commands &commands, r::ecs::Re
     r::ecs::Query<r::ecs::With<BackgroundMusicTag>> existing)
 {
     /* If a background music entity already exists, don't spawn another one. */
-    for (auto it = existing.begin(); it != existing.end(); ++it) {
+    if (existing.size() > 0) {
         return;
     }
 
